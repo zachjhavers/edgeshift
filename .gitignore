@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.venv/
+venv/
+*.pkl
+*.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+.next/
+out/
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
