@@ -537,7 +537,7 @@ def run_predictions():
                         market_implied_home_prob = EXCLUDED.market_implied_home_prob,
                         ev_home                  = EXCLUDED.ev_home,
                         ev_away                  = EXCLUDED.ev_away,
-                        updated_at               = NOW()
+                        updated_at               = datetime('now')
                 """), {
                     "game_date": p["date"], "matchup": p["matchup"],
                     "home_team": p["home_team"], "away_team": p["away_team"],
