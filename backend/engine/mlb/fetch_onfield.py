@@ -6,9 +6,12 @@ from db import get_engine
 
 def get_fetched_dates(engine) -> set:
     """Returns the set of game_dates already in the DB so we can skip them."""
-    with engine.connect() as conn:
-        result = conn.execute(text("SELECT DISTINCT CAST(game_date AS DATE) FROM statcast_raw"))
-        return {str(row[0]) for row in result}
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT DISTINCT game_date FROM statcast_raw"))
+            return {str(row[0]) for row in result}
+    except Exception:
+        return set()
 
 def fetch_and_store_games(target_date: str, engine, fetched_dates: set):
     if target_date in fetched_dates:
