@@ -119,6 +119,5 @@ if __name__ == "__main__":
     if args.dry_run:
         print("[DRY RUN] — no data will be fetched.\n")
     if args.seasons:
-        global SEASONS
-        SEASONS = [s for s in SEASONS if s[0] in args.seasons]
+        SEASONS[:] = [s for s in SEASONS if s[0] in args.seasons]
     run_backfill(dry_run=args.dry_run)
