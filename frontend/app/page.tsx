@@ -56,56 +56,55 @@ function normalizeNHL(b: NHLEvBet): UnifiedBet {
 }
 
 function Signal({ lm }: { lm: number }) {
-  if (lm === 1)  return <span className="text-[#22d3ee] font-medium text-xs whitespace-nowrap">Sharp ▲</span>;
-  if (lm === -1) return <span className="text-[#f87171] font-medium text-xs whitespace-nowrap">Fading ▼</span>;
-  return <span className="text-[#4b5563]">—</span>;
+  if (lm === 1)  return <span className="text-xs font-semibold text-[#22d3ee] uppercase tracking-wider">Sharp</span>;
+  if (lm === -1) return <span className="text-xs font-semibold text-[#f87171] uppercase tracking-wider">Fading</span>;
+  return <span className="text-xs font-semibold text-[#4b5563] uppercase tracking-wider">Neutral</span>;
 }
 
-function EvTable({ bets }: { bets: UnifiedBet[] }) {
+function BetCard({ b }: { b: UnifiedBet }) {
   return (
-    <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="border-b border-[#1a3050]">
-            <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Pick</th>
-            <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Game</th>
-            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Odds</th>
-            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b] whitespace-nowrap">Book</th>
-            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b] whitespace-nowrap">Our Win %</th>
-            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b] whitespace-nowrap">Market Win %</th>
-            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Edge</th>
-            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b] whitespace-nowrap">Profit / $100</th>
-            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b] whitespace-nowrap">Bet Size</th>
-            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Signal</th>
-          </tr>
-        </thead>
-        <tbody>
-          {bets.map((b, i) => (
-            <tr key={i} className="border-b border-[#0f1729] last:border-0 hover:bg-[#0d1526] transition-colors">
-              <td className="px-4 py-3.5 font-bold text-white text-base">{b.team}</td>
-              <td className="px-4 py-3.5 text-[#94a3b8] text-xs">{b.matchup}</td>
-              <td className="px-4 py-3.5 text-right text-[#cbd5e1] font-mono">{b.odds.toFixed(3)}</td>
-              <td className="px-4 py-3.5 text-right text-[#94a3b8] text-xs">{b.bookLabel}</td>
-              <td className="px-4 py-3.5 text-right text-[#cbd5e1]">{(b.model_prob * 100).toFixed(1)}%</td>
-              <td className="px-4 py-3.5 text-right text-[#94a3b8]">
-                {b.pin_prob !== null
-                  ? `${(b.pin_prob * 100).toFixed(1)}%`
-                  : `${(b.market_prob * 100).toFixed(1)}%`}
-              </td>
-              <td className="px-4 py-3.5 text-right font-semibold text-[#22d3ee]">
-                +{(b.edge_vs_market * 100).toFixed(1)}pp
-              </td>
-              <td className="px-4 py-3.5 text-right font-bold text-[#06b6d4] text-base">
-                ${b.ev.toFixed(0)}
-              </td>
-              <td className="px-4 py-3.5 text-right text-[#94a3b8]">{b.kelly_pct.toFixed(2)}%</td>
-              <td className="px-4 py-3.5 text-right">
-                <Signal lm={b.lm} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-5">
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <div className="text-xl font-bold text-white leading-tight">{b.team}</div>
+          <div className="text-sm text-[#64748b] mt-1">{b.matchup}</div>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0 ml-4">
+          <Signal lm={b.lm} />
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-mono text-[#cbd5e1] text-sm font-medium">{b.odds.toFixed(3)}</span>
+            <span className="text-[#4b5563] text-xs">at</span>
+            <span className="text-[#64748b] text-xs">{b.bookLabel}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-x-4 gap-y-3 pt-4 border-t border-[#1a3050]">
+        <div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Our Win %</div>
+          <div className="text-[#cbd5e1] font-semibold text-sm">{(b.model_prob * 100).toFixed(1)}%</div>
+        </div>
+        <div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Market Win %</div>
+          <div className="text-[#94a3b8] text-sm">
+            {b.pin_prob !== null
+              ? `${(b.pin_prob * 100).toFixed(1)}%`
+              : `${(b.market_prob * 100).toFixed(1)}%`}
+          </div>
+        </div>
+        <div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Edge</div>
+          <div className="text-[#22d3ee] font-semibold text-sm">+{(b.edge_vs_market * 100).toFixed(1)}pp</div>
+        </div>
+        <div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Profit / $100</div>
+          <div className="text-[#06b6d4] font-bold text-base">${b.ev.toFixed(0)}</div>
+        </div>
+        <div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Bet Size</div>
+          <div className="text-[#94a3b8] text-sm">{b.kelly_pct.toFixed(2)}%</div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -161,14 +160,14 @@ export default async function Home() {
           {/* Baseball */}
           <section>
             <div className="flex items-baseline gap-3 mb-4">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-white">⚾ Baseball</h2>
+              <h2 className="text-sm font-bold uppercase tracking-widest text-white">Baseball</h2>
               {mlbBets.length > 0
                 ? <span className="text-sm text-[#64748b]">{mlbBets.length} pick{mlbBets.length !== 1 ? "s" : ""}</span>
                 : <span className="text-sm text-[#64748b]">No picks today</span>
               }
             </div>
             {mlbBets.length > 0
-              ? <EvTable bets={mlbBets} />
+              ? <div className="space-y-3">{mlbBets.map((b, i) => <BetCard key={i} b={b} />)}</div>
               : (
                 <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-8 text-center text-sm text-[#64748b]">
                   No qualifying MLB bets today.
@@ -180,14 +179,14 @@ export default async function Home() {
           {/* Hockey */}
           <section>
             <div className="flex items-baseline gap-3 mb-4">
-              <h2 className="text-sm font-bold uppercase tracking-widest text-white">🏒 Hockey</h2>
+              <h2 className="text-sm font-bold uppercase tracking-widest text-white">Hockey</h2>
               {nhlBets.length > 0
                 ? <span className="text-sm text-[#64748b]">{nhlBets.length} pick{nhlBets.length !== 1 ? "s" : ""}</span>
                 : <span className="text-sm text-[#64748b]">No picks today</span>
               }
             </div>
             {nhlBets.length > 0
-              ? <EvTable bets={nhlBets} />
+              ? <div className="space-y-3">{nhlBets.map((b, i) => <BetCard key={i} b={b} />)}</div>
               : (
                 <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-8 text-center text-sm text-[#64748b]">
                   No qualifying NHL bets today.
@@ -226,19 +225,19 @@ export default async function Home() {
           <p className="text-xs font-semibold uppercase tracking-widest text-[#64748b] mb-3">Signals</p>
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1 rounded-lg border border-[#1a3050] bg-[#0a0f1e] px-4 py-3">
-              <p className="text-[#22d3ee] font-semibold text-sm mb-1">Sharp ▲</p>
+              <p className="text-[#22d3ee] font-semibold text-xs uppercase tracking-wider mb-1.5">Sharp</p>
               <p className="text-[#94a3b8] text-sm leading-relaxed">
                 The betting line has moved in our direction since opening. Professional bettors appear to agree with our model.
               </p>
             </div>
             <div className="flex-1 rounded-lg border border-[#1a3050] bg-[#0a0f1e] px-4 py-3">
-              <p className="text-[#f87171] font-semibold text-sm mb-1">Fading ▼</p>
+              <p className="text-[#f87171] font-semibold text-xs uppercase tracking-wider mb-1.5">Fading</p>
               <p className="text-[#94a3b8] text-sm leading-relaxed">
                 The line has shifted slightly against us. The bet still qualifies — large moves against are filtered out automatically.
               </p>
             </div>
             <div className="flex-1 rounded-lg border border-[#1a3050] bg-[#0a0f1e] px-4 py-3">
-              <p className="text-[#64748b] font-semibold text-sm mb-1">— Neutral</p>
+              <p className="text-[#64748b] font-semibold text-xs uppercase tracking-wider mb-1.5">Neutral</p>
               <p className="text-[#94a3b8] text-sm leading-relaxed">
                 No significant line movement since opening. The market hasn&apos;t shifted notably either way.
               </p>
