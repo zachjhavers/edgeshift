@@ -70,7 +70,7 @@ def build_and_train_model():
     query = """
         SELECT
             game_pk,
-            CAST(game_date AS DATE)  AS game_date,
+            game_date,
             home_team, away_team,
             MAX(home_score)          AS final_home_score,
             MAX(away_score)          AS final_away_score,
@@ -82,7 +82,7 @@ def build_and_train_model():
             AVG(CASE WHEN inning_topbot = 'Top' THEN estimated_woba_using_speedangle  END) AS away_xwoba
         FROM statcast_raw
         WHERE game_type = 'R'
-        GROUP BY game_pk, CAST(game_date AS DATE), home_team, away_team
+        GROUP BY game_pk, game_date, home_team, away_team
         HAVING MAX(home_score) IS NOT NULL AND MAX(away_score) IS NOT NULL
         ORDER BY game_date
     """
@@ -120,13 +120,13 @@ def build_and_train_model():
     pitcher_query = """
         SELECT
             game_pk,
-            CAST(game_date AS DATE)  AS game_date,
+            game_date,
             home_team, away_team,
             pitcher, inning_topbot,
             AVG(release_speed)       AS avg_velo,
-            SUM(CASE WHEN events = 'strikeout' THEN 1 ELSE 0 END)::float /
+            CAST(SUM(CASE WHEN events = 'strikeout' THEN 1 ELSE 0 END) AS REAL) /
                 NULLIF(SUM(CASE WHEN events IS NOT NULL THEN 1 ELSE 0 END), 0) AS k_pct,
-            SUM(CASE WHEN events IN ('walk', 'intent_walk') THEN 1 ELSE 0 END)::float /
+            CAST(SUM(CASE WHEN events IN ('walk', 'intent_walk') THEN 1 ELSE 0 END) AS REAL) /
                 NULLIF(SUM(CASE WHEN events IS NOT NULL THEN 1 ELSE 0 END), 0) AS bb_pct,
             AVG(estimated_woba_using_speedangle) AS xwoba_against,
             SUM(CASE WHEN events = 'home_run'                              THEN 1 ELSE 0 END) AS hr_count,
@@ -145,7 +145,7 @@ def build_and_train_model():
                 ELSE 0 END) * 1.0 / 3.0 AS ip
         FROM statcast_raw
         WHERE game_type = 'R'
-        GROUP BY game_pk, CAST(game_date AS DATE), home_team, away_team, pitcher, inning_topbot
+        GROUP BY game_pk, game_date, home_team, away_team, pitcher, inning_topbot
     """
     df_pitcher  = pd.read_sql(pitcher_query, engine, parse_dates=["game_date"])
     starter_idx = df_pitcher.groupby(["game_pk", "inning_topbot"])["pitch_count"].idxmax()
