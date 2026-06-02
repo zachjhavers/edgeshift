@@ -42,43 +42,41 @@ def _ensure_odds_table(engine) -> None:
     with engine.begin() as conn:
         conn.execute(_text("""
             CREATE TABLE IF NOT EXISTS historical_odds (
-                id                         SERIAL PRIMARY KEY,
-                api_event_id               VARCHAR(50),
-                game_date                  DATE        NOT NULL,
-                home_team                  VARCHAR(10) NOT NULL,
-                away_team                  VARCHAR(10) NOT NULL,
-                home_odds                  FLOAT,
-                away_odds                  FLOAT,
-                pinnacle_home_odds         FLOAT,
-                pinnacle_away_odds         FLOAT,
-                consensus_home_prob        FLOAT,
-                best_home_odds             FLOAT,
-                best_away_odds             FLOAT,
-                best_home_book             VARCHAR(20),
-                best_away_book             VARCHAR(20),
-                opening_pinnacle_home_prob FLOAT,
-                bookmaker_source           VARCHAR(20),
-                last_fetched_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                id                         INTEGER PRIMARY KEY,
+                api_event_id               TEXT,
+                game_date                  TEXT NOT NULL,
+                home_team                  TEXT NOT NULL,
+                away_team                  TEXT NOT NULL,
+                home_odds                  REAL,
+                away_odds                  REAL,
+                pinnacle_home_odds         REAL,
+                pinnacle_away_odds         REAL,
+                consensus_home_prob        REAL,
+                best_home_odds             REAL,
+                best_away_odds             REAL,
+                best_home_book             TEXT,
+                best_away_book             TEXT,
+                opening_pinnacle_home_prob REAL,
+                bookmaker_source           TEXT,
+                last_fetched_at            TEXT NOT NULL DEFAULT (datetime('now')),
                 UNIQUE (game_date, home_team, away_team)
             )
         """))
         # Migrate older tables that lack the new columns
         new_cols = [
-            ("pinnacle_home_odds",         "FLOAT"),
-            ("pinnacle_away_odds",         "FLOAT"),
-            ("consensus_home_prob",        "FLOAT"),
-            ("best_home_odds",             "FLOAT"),
-            ("best_away_odds",             "FLOAT"),
-            ("best_home_book",             "VARCHAR(20)"),
-            ("best_away_book",             "VARCHAR(20)"),
-            ("opening_pinnacle_home_prob", "FLOAT"),
-            ("last_fetched_at",            "TIMESTAMPTZ DEFAULT NOW()"),
+            ("pinnacle_home_odds",         "REAL"),
+            ("pinnacle_away_odds",         "REAL"),
+            ("consensus_home_prob",        "REAL"),
+            ("best_home_odds",             "REAL"),
+            ("best_away_odds",             "REAL"),
+            ("best_home_book",             "TEXT"),
+            ("best_away_book",             "TEXT"),
+            ("opening_pinnacle_home_prob", "REAL"),
+            ("last_fetched_at",            "TEXT DEFAULT (datetime('now'))"),
         ]
         for col, dtype in new_cols:
             try:
-                conn.execute(_text(
-                    f"ALTER TABLE historical_odds ADD COLUMN IF NOT EXISTS {col} {dtype}"
-                ))
+                conn.execute(_text(f"ALTER TABLE historical_odds ADD COLUMN {col} {dtype}"))
             except Exception:
                 pass
 
@@ -224,7 +222,7 @@ def fetch_and_store_live_odds() -> None:
                      :best_home_odds, :best_away_odds,
                      :best_home_book, :best_away_book,
                      :opening_pinnacle_home_prob,
-                     'multi', NOW())
+                     'multi', datetime('now'))
                 ON CONFLICT (game_date, home_team, away_team) DO UPDATE SET
                     api_event_id            = EXCLUDED.api_event_id,
                     home_odds               = EXCLUDED.home_odds,
@@ -241,7 +239,7 @@ def fetch_and_store_live_odds() -> None:
                         EXCLUDED.opening_pinnacle_home_prob
                     ),
                     bookmaker_source        = 'multi',
-                    last_fetched_at         = NOW()
+                    last_fetched_at         = datetime('now')
             """), {
                 "api_event_id":             row.get("api_event_id"),
                 "game_date":                row["game_date"],

@@ -80,25 +80,25 @@ def _ensure_ev_bets_table(engine) -> None:
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS mlb_ev_bets (
-                id                    SERIAL PRIMARY KEY,
-                game_date             DATE        NOT NULL,
-                matchup               VARCHAR(60) NOT NULL,
-                side                  VARCHAR(5)  NOT NULL,
-                team                  VARCHAR(10) NOT NULL,
-                model_prob            FLOAT,
-                market_prob           FLOAT,
-                pinnacle_prob         FLOAT,
-                edge_vs_market        FLOAT,
-                entry_odds            FLOAT,
-                entry_book            VARCHAR(20),
-                ev                    FLOAT,
-                kelly_pct             FLOAT,
+                id                    INTEGER PRIMARY KEY,
+                game_date             TEXT NOT NULL,
+                matchup               TEXT NOT NULL,
+                side                  TEXT NOT NULL,
+                team                  TEXT NOT NULL,
+                model_prob            REAL,
+                market_prob           REAL,
+                pinnacle_prob         REAL,
+                edge_vs_market        REAL,
+                entry_odds            REAL,
+                entry_book            TEXT,
+                ev                    REAL,
+                kelly_pct             REAL,
                 line_move_direction   INTEGER,
-                closing_pinnacle_odds FLOAT,
-                clv_pct               FLOAT,
-                result                VARCHAR(20) NOT NULL DEFAULT 'TBD',
-                created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                closing_pinnacle_odds REAL,
+                clv_pct               REAL,
+                result                TEXT NOT NULL DEFAULT 'TBD',
+                created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at            TEXT NOT NULL DEFAULT (datetime('now')),
                 UNIQUE (game_date, matchup, side)
             )
         """))
@@ -172,7 +172,7 @@ def run_predictions():
 
     game_stats_query = text("""
         SELECT
-            CAST(game_date AS DATE) AS game_date,
+            game_date,
             home_team, away_team,
             MAX(home_score)  AS final_home_score,
             MAX(away_score)  AS final_away_score,
@@ -184,8 +184,8 @@ def run_predictions():
             AVG(CASE WHEN inning_topbot = 'Top' THEN estimated_woba_using_speedangle END) AS away_xwoba
         FROM statcast_raw
         WHERE game_type = 'R'
-          AND CAST(game_date AS DATE) < :today
-        GROUP BY CAST(game_date AS DATE), home_team, away_team
+          AND game_date < :today
+        GROUP BY game_date, home_team, away_team
         HAVING MAX(home_score) IS NOT NULL
         ORDER BY game_date
     """)
@@ -199,13 +199,13 @@ def run_predictions():
     pitcher_query = text("""
         SELECT
             game_pk,
-            CAST(game_date AS DATE) AS game_date,
+            game_date,
             home_team, away_team,
             pitcher, inning_topbot,
             AVG(release_speed)      AS avg_velo,
-            SUM(CASE WHEN events = 'strikeout' THEN 1 ELSE 0 END)::float /
+            CAST(SUM(CASE WHEN events = 'strikeout' THEN 1 ELSE 0 END) AS REAL) /
                 NULLIF(SUM(CASE WHEN events IS NOT NULL THEN 1 ELSE 0 END), 0) AS k_pct,
-            SUM(CASE WHEN events IN ('walk', 'intent_walk') THEN 1 ELSE 0 END)::float /
+            CAST(SUM(CASE WHEN events IN ('walk', 'intent_walk') THEN 1 ELSE 0 END) AS REAL) /
                 NULLIF(SUM(CASE WHEN events IS NOT NULL THEN 1 ELSE 0 END), 0) AS bb_pct,
             AVG(estimated_woba_using_speedangle) AS xwoba_against,
             SUM(CASE WHEN events = 'home_run'                             THEN 1 ELSE 0 END) AS hr_count,
@@ -224,8 +224,8 @@ def run_predictions():
                 ELSE 0 END) * 1.0 / 3.0 AS ip
         FROM statcast_raw
         WHERE game_type = 'R'
-          AND CAST(game_date AS DATE) < :today
-        GROUP BY game_pk, CAST(game_date AS DATE), home_team, away_team, pitcher, inning_topbot
+          AND game_date < :today
+        GROUP BY game_pk, game_date, home_team, away_team, pitcher, inning_topbot
     """)
     df_pitcher  = pd.read_sql(pitcher_query, engine, params={"today": today},
                                parse_dates=["game_date"])
@@ -578,7 +578,7 @@ def run_predictions():
                             ev                   = EXCLUDED.ev,
                             kelly_pct            = EXCLUDED.kelly_pct,
                             line_move_direction  = EXCLUDED.line_move_direction,
-                            updated_at           = NOW()
+                            updated_at           = datetime('now')
                     """), {
                         "game_date":           b["date"],
                         "matchup":             b["matchup"],

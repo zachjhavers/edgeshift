@@ -97,7 +97,7 @@ def build_and_train_model():
     weather_lookup: dict[tuple, dict] = {}
     try:
         df_wx = pd.read_sql(
-            "SELECT game_date::text AS gd, home_team, wind_speed_mph, wind_direction_deg, "
+            "SELECT game_date AS gd, home_team, wind_speed_mph, wind_direction_deg, "
             "wind_component_out, temperature_f, precip_probability FROM weather_cache",
             engine,
         )

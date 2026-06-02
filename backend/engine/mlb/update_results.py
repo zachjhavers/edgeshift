@@ -25,23 +25,23 @@ def _ensure_table(engine):
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS mlb_predictions (
-                id                       SERIAL PRIMARY KEY,
-                game_date                DATE        NOT NULL,
-                matchup                  VARCHAR(60) NOT NULL,
-                home_team                VARCHAR(10) NOT NULL,
-                away_team                VARCHAR(10) NOT NULL,
-                home_model_prob          FLOAT,
-                away_model_prob          FLOAT,
-                confidence               FLOAT,
-                home_elo_prob            FLOAT,
-                home_odds                FLOAT,
-                away_odds                FLOAT,
-                market_implied_home_prob FLOAT,
-                ev_home                  FLOAT,
-                ev_away                  FLOAT,
-                result                   VARCHAR(20) NOT NULL DEFAULT 'TBD',
-                created_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at               TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                id                       INTEGER PRIMARY KEY,
+                game_date                TEXT NOT NULL,
+                matchup                  TEXT NOT NULL,
+                home_team                TEXT NOT NULL,
+                away_team                TEXT NOT NULL,
+                home_model_prob          REAL,
+                away_model_prob          REAL,
+                confidence               REAL,
+                home_elo_prob            REAL,
+                home_odds                REAL,
+                away_odds                REAL,
+                market_implied_home_prob REAL,
+                ev_home                  REAL,
+                ev_away                  REAL,
+                result                   TEXT NOT NULL DEFAULT 'TBD',
+                created_at               TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at               TEXT NOT NULL DEFAULT (datetime('now')),
                 UNIQUE (game_date, home_team, away_team)
             )
         """))
@@ -51,25 +51,25 @@ def _ensure_ev_bets_table(engine):
     with engine.begin() as conn:
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS mlb_ev_bets (
-                id                    SERIAL PRIMARY KEY,
-                game_date             DATE        NOT NULL,
-                matchup               VARCHAR(60) NOT NULL,
-                side                  VARCHAR(5)  NOT NULL,
-                team                  VARCHAR(10) NOT NULL,
-                model_prob            FLOAT,
-                market_prob           FLOAT,
-                pinnacle_prob         FLOAT,
-                edge_vs_market        FLOAT,
-                entry_odds            FLOAT,
-                entry_book            VARCHAR(20),
-                ev                    FLOAT,
-                kelly_pct             FLOAT,
+                id                    INTEGER PRIMARY KEY,
+                game_date             TEXT NOT NULL,
+                matchup               TEXT NOT NULL,
+                side                  TEXT NOT NULL,
+                team                  TEXT NOT NULL,
+                model_prob            REAL,
+                market_prob           REAL,
+                pinnacle_prob         REAL,
+                edge_vs_market        REAL,
+                entry_odds            REAL,
+                entry_book            TEXT,
+                ev                    REAL,
+                kelly_pct             REAL,
                 line_move_direction   INTEGER,
-                closing_pinnacle_odds FLOAT,
-                clv_pct               FLOAT,
-                result                VARCHAR(20) NOT NULL DEFAULT 'TBD',
-                created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                closing_pinnacle_odds REAL,
+                clv_pct               REAL,
+                result                TEXT NOT NULL DEFAULT 'TBD',
+                created_at            TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at            TEXT NOT NULL DEFAULT (datetime('now')),
                 UNIQUE (game_date, matchup, side)
             )
         """))
@@ -150,7 +150,7 @@ def _resolve_clv(engine, resolved: dict[tuple, str]) -> None:
                         SET result = :result,
                             closing_pinnacle_odds = :closing_odds,
                             clv_pct = :clv_pct,
-                            updated_at = NOW()
+                            updated_at = datetime('now')
                         WHERE id = :id
                     """), {
                         "result":       result,
@@ -173,7 +173,7 @@ def update_results():
 
     with engine.connect() as conn:
         pending = conn.execute(text("""
-            SELECT id, game_date::text, home_team, away_team
+            SELECT id, game_date, home_team, away_team
             FROM mlb_predictions
             WHERE result = 'TBD'
               AND game_date <= :today
@@ -206,7 +206,7 @@ def update_results():
                 result = "HOME_WIN" if home_score > away_score else "AWAY_WIN"
                 conn.execute(text("""
                     UPDATE mlb_predictions
-                    SET result = :result, updated_at = NOW()
+                    SET result = :result, updated_at = datetime('now')
                     WHERE id = :id
                 """), {"result": result, "id": row.id})
                 resolved[(date_str, row.home_team, row.away_team)] = result
@@ -228,7 +228,7 @@ def _sync_csv_from_db(engine):
     try:
         with engine.connect() as conn:
             rows_pg = conn.execute(text("""
-                SELECT game_date::text, home_team, away_team, result
+                SELECT game_date, home_team, away_team, result
                 FROM mlb_predictions
                 WHERE result != 'TBD'
             """)).fetchall()

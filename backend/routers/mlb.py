@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -10,14 +11,11 @@ router = APIRouter()
 _HIGH_CONF_PROB  = 0.62   # max(home, away) >= this → HIGH tier
 _MED_CONF_PROB   = 0.57   # max(home, away) >= this → MEDIUM tier
 
+_MLB_DB_PATH = os.getenv("MLB_DB_PATH", str(Path(__file__).parent.parent / "engine" / "mlb" / "mlb_predictor.db"))
+
 
 def _get_pg_engine():
-    user = os.getenv("DB_USER", "postgres")
-    pwd  = os.getenv("DB_PASS", "")
-    host = os.getenv("DB_HOST", "localhost")
-    port = os.getenv("DB_PORT", "5432")
-    name = os.getenv("DB_NAME", "mlb_model")
-    return create_engine(f"postgresql://{user}:{pwd}@{host}:{port}/{name}")
+    return create_engine(f"sqlite:///{_MLB_DB_PATH}", connect_args={"check_same_thread": False})
 
 
 def _load_predictions() -> pd.DataFrame:
@@ -26,7 +24,7 @@ def _load_predictions() -> pd.DataFrame:
         engine = _get_pg_engine()
         df = pd.read_sql(text("""
             SELECT
-                game_date::text AS date,
+                game_date AS date,
                 matchup, home_team, away_team,
                 home_model_prob, away_model_prob, confidence, home_elo_prob,
                 home_odds, away_odds, market_implied_home_prob,
@@ -246,7 +244,7 @@ def get_ev_bets(date: Optional[str] = Query(None)):
         engine = _get_pg_engine()
         df = pd.read_sql(text("""
             SELECT
-                game_date::text AS date,
+                game_date AS date,
                 matchup, side, team,
                 model_prob, market_prob, pinnacle_prob, edge_vs_market,
                 entry_odds, entry_book,
@@ -321,7 +319,7 @@ def get_clv_summary():
         engine = _get_pg_engine()
         df = pd.read_sql(text("""
             SELECT
-                game_date::text AS date,
+                game_date AS date,
                 side, team, matchup,
                 entry_odds, closing_pinnacle_odds, clv_pct,
                 ev, result
