@@ -199,24 +199,60 @@ export default async function Home() {
         </div>
       )}
 
-      {/* Column explainer */}
-      <div className="mt-10 pt-6 border-t border-[#1a3050]">
-        <p className="text-xs font-semibold uppercase tracking-widest text-[#64748b] mb-3">How to read this</p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-xs text-[#7f8ea3] leading-relaxed">
-          <p><span className="text-[#94a3b8] font-medium">Our Win %</span> — The probability our model gives this team of winning.</p>
-          <p><span className="text-[#94a3b8] font-medium">Market Win %</span> — The implied probability baked into the sportsbook&apos;s odds (vig-free).</p>
-          <p><span className="text-[#22d3ee] font-medium">Edge</span> — How much higher our win % is vs. the market. This is your mathematical advantage.</p>
-          <p><span className="text-[#06b6d4] font-medium">Profit / $100</span> — Expected long-term profit on every $100 bet, based on our model.</p>
-          <p><span className="text-[#94a3b8] font-medium">Bet Size</span> — Suggested % of bankroll to wager (conservative, capped at 5%).</p>
-          <p>
-            <span className="text-[#22d3ee] font-medium">Sharp ▲</span> — Betting lines are shifting in our direction;
-            professional bettors appear to agree.{" "}
-            <span className="text-[#f87171] font-medium">Fading ▼</span> — Lines moving slightly against (still qualifies).
+      {/* Legend */}
+      <div className="mt-10 pt-6 border-t border-[#1a3050] space-y-6">
+
+        {/* The numbers */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-[#64748b] mb-3">The Numbers</p>
+          <dl className="space-y-2.5">
+            {[
+              { term: "Our Win %",     color: "text-[#94a3b8]", def: "The probability our model gives this team of winning the game." },
+              { term: "Market Win %",  color: "text-[#94a3b8]", def: "The win probability implied by the sportsbook odds, with the house cut removed." },
+              { term: "Edge",          color: "text-[#22d3ee]", def: "How much higher our win % is than the market's. Anything above 0 means we think you have an advantage." },
+              { term: "Profit / $100", color: "text-[#06b6d4]", def: "Expected long-term profit on every $100 wagered. A $7 value means: if you placed this bet 100 times in identical conditions, you'd average $7 profit per bet." },
+              { term: "Bet Size",      color: "text-[#94a3b8]", def: "Suggested portion of your bankroll to wager, based on your edge. Capped at 5% to keep risk conservative." },
+            ].map(({ term, color, def }) => (
+              <div key={term} className="flex gap-4 text-sm">
+                <dt className={`${color} font-semibold shrink-0 w-28`}>{term}</dt>
+                <dd className="text-[#94a3b8] leading-relaxed">{def}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+
+        {/* Signals */}
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-widest text-[#64748b] mb-3">Signals</p>
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 rounded-lg border border-[#1a3050] bg-[#0a0f1e] px-4 py-3">
+              <p className="text-[#22d3ee] font-semibold text-sm mb-1">Sharp ▲</p>
+              <p className="text-[#94a3b8] text-sm leading-relaxed">
+                The betting line has moved in our direction since opening. Professional bettors appear to agree with our model.
+              </p>
+            </div>
+            <div className="flex-1 rounded-lg border border-[#1a3050] bg-[#0a0f1e] px-4 py-3">
+              <p className="text-[#f87171] font-semibold text-sm mb-1">Fading ▼</p>
+              <p className="text-[#94a3b8] text-sm leading-relaxed">
+                The line has shifted slightly against us. The bet still qualifies — large moves against are filtered out automatically.
+              </p>
+            </div>
+            <div className="flex-1 rounded-lg border border-[#1a3050] bg-[#0a0f1e] px-4 py-3">
+              <p className="text-[#64748b] font-semibold text-sm mb-1">— Neutral</p>
+              <p className="text-[#94a3b8] text-sm leading-relaxed">
+                No significant line movement since opening. The market hasn&apos;t shifted notably either way.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Disclaimer */}
+        <div className="pt-2 border-t border-[#1a3050]">
+          <p className="text-sm text-[#64748b]">
+            For informational purposes only. EdgeShift picks are not gambling advice.
           </p>
         </div>
-        <p className="text-xs text-[#374151] mt-4">
-          For informational purposes only. EdgeShift picks are not gambling advice.
-        </p>
+
       </div>
 
     </div>
