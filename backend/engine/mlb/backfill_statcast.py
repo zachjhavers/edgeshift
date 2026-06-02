@@ -34,6 +34,8 @@ SEASONS = [
     ("2022", "2022-04-07", "2022-10-05"),
     ("2023", "2023-03-30", "2023-10-01"),
     ("2024", "2024-03-20", "2024-09-29"),
+    ("2025", "2025-03-27", "2025-09-28"),
+    ("2026", "2026-03-26", "2026-06-01"),  # updated daily via main_cron
 ]
 
 CHUNK_WEEKS = 4   # fetch 4 weeks at a time — safe for pybaseball without timeouts
@@ -108,7 +110,15 @@ def run_backfill(dry_run: bool = False):
 
 
 if __name__ == "__main__":
-    dry_run = "--dry-run" in sys.argv
-    if dry_run:
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dry-run",  action="store_true")
+    parser.add_argument("--seasons",  nargs="+", metavar="YEAR",
+                        help="Only fetch these seasons, e.g. --seasons 2025 2026")
+    args = parser.parse_args()
+    if args.dry_run:
         print("[DRY RUN] — no data will be fetched.\n")
-    run_backfill(dry_run=dry_run)
+    if args.seasons:
+        global SEASONS
+        SEASONS = [s for s in SEASONS if s[0] in args.seasons]
+    run_backfill(dry_run=args.dry_run)
