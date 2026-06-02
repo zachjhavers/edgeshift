@@ -142,10 +142,11 @@ def fetch_and_store_live_odds() -> None:
                 dk_home = h
                 dk_away = a
 
-            if h > best_home_odds:
-                best_home_odds, best_home_book = h, bkey
-            if a > best_away_odds:
-                best_away_odds, best_away_book = a, bkey
+            if bkey != SHARP_BOOK:
+                if h > best_home_odds:
+                    best_home_odds, best_home_book = h, bkey
+                if a > best_away_odds:
+                    best_away_odds, best_away_book = a, bkey
 
         if not book_vf_probs:
             continue
