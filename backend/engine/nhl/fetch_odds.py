@@ -17,7 +17,7 @@ REGIONS      = "us"
 MARKETS      = "h2h"
 BOOKMAKERS   = "pinnacle,draftkings,fanduel,betmgm,williamhill_us"
 
-DB_PATH = Path(__file__).parent / "nhl_predictor.db"
+DB_PATH = Path(os.getenv("NHL_DB_PATH", str(Path(__file__).parent / "nhl_predictor.db")))
 
 # The Odds API returns full team names; NHL engine uses 3-letter codes
 TEAM_NAME_MAP: dict[str, str] = {

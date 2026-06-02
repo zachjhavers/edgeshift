@@ -17,7 +17,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "nhl_predictor.db"
+DB_PATH = Path(os.getenv("NHL_DB_PATH", str(Path(__file__).parent / "nhl_predictor.db")))
 
 STAKE             = 100.0
 EV_THRESHOLD      = 15.0
@@ -116,8 +116,8 @@ def run_ev(as_of_date: str | None = None) -> list[dict]:
                best_home_odds, best_away_odds, best_home_book, best_away_book,
                consensus_home_prob, opening_pinnacle_home_prob
         FROM historical_odds
-        WHERE game_date = ?
-    """, (today,)).fetchall()
+        WHERE game_date BETWEEN date(?, '-1 day') AND date(?, '+1 day')
+    """, (today, today)).fetchall()
     conn.close()
 
     odds_lookup: dict[tuple, dict] = {
