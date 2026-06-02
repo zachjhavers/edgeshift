@@ -3,13 +3,6 @@ import type { MLBEvBet, NHLEvBet } from "@/lib/api";
 
 export const revalidate = 300;
 
-const LM_ICON: Record<number, string>  = { 1: "↑", [-1]: "↓", 0: "—" };
-const LM_COLOR: Record<number, string> = {
-  1:    "text-[#22d3ee]",
-  [-1]: "text-[#f87171]",
-  0:    "text-[#4b5563]",
-};
-
 type UnifiedBet = {
   team:           string;
   matchup:        string;
@@ -62,50 +55,55 @@ function normalizeNHL(b: NHLEvBet): UnifiedBet {
   };
 }
 
+function Signal({ lm }: { lm: number }) {
+  if (lm === 1)  return <span className="text-[#22d3ee] font-medium text-xs whitespace-nowrap">Sharp ▲</span>;
+  if (lm === -1) return <span className="text-[#f87171] font-medium text-xs whitespace-nowrap">Fading ▼</span>;
+  return <span className="text-[#4b5563]">—</span>;
+}
+
 function EvTable({ bets }: { bets: UnifiedBet[] }) {
   return (
-    <div className="rounded-lg border border-[#1a3050] bg-[#0a0f1e] overflow-x-auto">
+    <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] overflow-x-auto">
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-[#1a3050] text-xs text-[#4b5563] uppercase tracking-wider">
-            <th className="text-left px-4 py-3">Team</th>
-            <th className="text-left px-4 py-3">Matchup</th>
-            <th className="text-right px-4 py-3">Best Odds</th>
-            <th className="text-right px-4 py-3 whitespace-nowrap">At Book</th>
-            <th className="text-right px-4 py-3">Model%</th>
-            <th className="text-right px-4 py-3 whitespace-nowrap">Pin. Mkt%</th>
-            <th className="text-right px-4 py-3">Edge</th>
-            <th className="text-right px-4 py-3">EV/100</th>
-            <th className="text-right px-4 py-3">Kelly</th>
-            <th className="text-right px-4 py-3 whitespace-nowrap" title="Line movement vs opening Pinnacle">LM</th>
+          <tr className="border-b border-[#1a3050]">
+            <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Pick</th>
+            <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Game</th>
+            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Odds</th>
+            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b] whitespace-nowrap">Book</th>
+            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b] whitespace-nowrap">Our Win %</th>
+            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b] whitespace-nowrap">Market Win %</th>
+            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Edge</th>
+            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b] whitespace-nowrap">Profit / $100</th>
+            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b] whitespace-nowrap">Bet Size</th>
+            <th className="text-right px-4 py-3 text-xs font-semibold uppercase tracking-wider text-[#64748b]">Signal</th>
           </tr>
         </thead>
         <tbody>
-          {bets.map((b, i) => {
-            const lm = b.lm;
-            return (
-              <tr key={i} className="border-b border-[#0f1729] hover:bg-[#0f1729] transition-colors">
-                <td className="px-4 py-3 font-semibold text-white">{b.team}</td>
-                <td className="px-4 py-3 text-[#6b7280] text-xs">{b.matchup}</td>
-                <td className="px-4 py-3 text-right text-[#94a3b8]">{b.odds.toFixed(3)}</td>
-                <td className="px-4 py-3 text-right text-[#6b7280] text-xs">{b.bookLabel}</td>
-                <td className="px-4 py-3 text-right text-[#94a3b8]">{(b.model_prob * 100).toFixed(1)}%</td>
-                <td className="px-4 py-3 text-right text-[#94a3b8]">
-                  {b.pin_prob !== null
-                    ? `${(b.pin_prob * 100).toFixed(1)}%`
-                    : `${(b.market_prob * 100).toFixed(1)}%`}
-                </td>
-                <td className="px-4 py-3 text-right text-[#22d3ee]">
-                  +{(b.edge_vs_market * 100).toFixed(1)}pp
-                </td>
-                <td className="px-4 py-3 text-right font-semibold text-[#06b6d4]">${b.ev.toFixed(0)}</td>
-                <td className="px-4 py-3 text-right text-[#6b7280]">{b.kelly_pct.toFixed(2)}%</td>
-                <td className={`px-4 py-3 text-right font-mono ${LM_COLOR[lm] ?? "text-[#4b5563]"}`}>
-                  {LM_ICON[lm] ?? "—"}
-                </td>
-              </tr>
-            );
-          })}
+          {bets.map((b, i) => (
+            <tr key={i} className="border-b border-[#0f1729] last:border-0 hover:bg-[#0d1526] transition-colors">
+              <td className="px-4 py-3.5 font-bold text-white text-base">{b.team}</td>
+              <td className="px-4 py-3.5 text-[#94a3b8] text-xs">{b.matchup}</td>
+              <td className="px-4 py-3.5 text-right text-[#cbd5e1] font-mono">{b.odds.toFixed(3)}</td>
+              <td className="px-4 py-3.5 text-right text-[#94a3b8] text-xs">{b.bookLabel}</td>
+              <td className="px-4 py-3.5 text-right text-[#cbd5e1]">{(b.model_prob * 100).toFixed(1)}%</td>
+              <td className="px-4 py-3.5 text-right text-[#94a3b8]">
+                {b.pin_prob !== null
+                  ? `${(b.pin_prob * 100).toFixed(1)}%`
+                  : `${(b.market_prob * 100).toFixed(1)}%`}
+              </td>
+              <td className="px-4 py-3.5 text-right font-semibold text-[#22d3ee]">
+                +{(b.edge_vs_market * 100).toFixed(1)}pp
+              </td>
+              <td className="px-4 py-3.5 text-right font-bold text-[#06b6d4] text-base">
+                ${b.ev.toFixed(0)}
+              </td>
+              <td className="px-4 py-3.5 text-right text-[#94a3b8]">{b.kelly_pct.toFixed(2)}%</td>
+              <td className="px-4 py-3.5 text-right">
+                <Signal lm={b.lm} />
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -133,25 +131,27 @@ export default async function Home() {
   const noPicksToday = mlbBets.length === 0 && nhlBets.length === 0;
 
   return (
-    <div className="max-w-5xl">
+    <div>
 
-      {/* Header */}
+      {/* Page header */}
       <div className="mb-10 pb-6 border-b border-[#1a3050]">
         <p className="text-xs font-bold uppercase tracking-widest text-[#22d3ee]/60 mb-1">
           {date}
         </p>
-        <h1 className="text-3xl font-bold text-white mb-2">Today's Picks</h1>
-        <p className="text-sm text-[#6b7280]">
-          Positive expected value bets identified by our XGBoost models.
-          Pinnacle vig-free edge 4–7pp · EV threshold $15/100 · best odds across all books.
+        <h1 className="text-3xl font-bold text-white mb-3">Today&apos;s Picks</h1>
+        <p className="text-[#94a3b8] text-sm leading-relaxed max-w-2xl">
+          We model every game using advanced stats and find bets where the true win probability
+          is higher than what the sportsbook odds imply. Every pick below has a{" "}
+          <span className="text-white font-medium">mathematical edge</span> — meaning
+          if you consistently bet these, you profit long-term.
         </p>
       </div>
 
       {noPicksToday ? (
-        <div className="rounded-lg border border-[#1a3050] bg-[#0a0f1e] p-16 text-center">
-          <div className="text-white font-semibold text-lg mb-2">No picks today</div>
-          <div className="text-sm text-[#6b7280]">
-            No qualifying bets found across MLB or NHL.
+        <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-16 text-center">
+          <div className="text-white font-semibold text-xl mb-2">No picks today</div>
+          <div className="text-[#94a3b8] text-sm leading-relaxed">
+            Our models didn&apos;t find any bets with a strong enough edge today.<br />
             Check back tomorrow morning — picks update daily.
           </div>
         </div>
@@ -161,16 +161,16 @@ export default async function Home() {
           {/* Baseball */}
           <section>
             <div className="flex items-baseline gap-3 mb-4">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-white">⚾ Baseball</h2>
+              <h2 className="text-sm font-bold uppercase tracking-widest text-white">⚾ Baseball</h2>
               {mlbBets.length > 0
-                ? <span className="text-xs text-[#4b5563]">{mlbBets.length} pick{mlbBets.length !== 1 ? "s" : ""} today</span>
-                : <span className="text-xs text-[#4b5563]">No picks today</span>
+                ? <span className="text-sm text-[#64748b]">{mlbBets.length} pick{mlbBets.length !== 1 ? "s" : ""}</span>
+                : <span className="text-sm text-[#64748b]">No picks today</span>
               }
             </div>
             {mlbBets.length > 0
               ? <EvTable bets={mlbBets} />
               : (
-                <div className="rounded-lg border border-[#1a3050] bg-[#0a0f1e] p-8 text-center text-sm text-[#4b5563]">
+                <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-8 text-center text-sm text-[#64748b]">
                   No qualifying MLB bets today.
                 </div>
               )
@@ -180,16 +180,16 @@ export default async function Home() {
           {/* Hockey */}
           <section>
             <div className="flex items-baseline gap-3 mb-4">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-white">🏒 Hockey</h2>
+              <h2 className="text-sm font-bold uppercase tracking-widest text-white">🏒 Hockey</h2>
               {nhlBets.length > 0
-                ? <span className="text-xs text-[#4b5563]">{nhlBets.length} pick{nhlBets.length !== 1 ? "s" : ""} today</span>
-                : <span className="text-xs text-[#4b5563]">No picks today</span>
+                ? <span className="text-sm text-[#64748b]">{nhlBets.length} pick{nhlBets.length !== 1 ? "s" : ""}</span>
+                : <span className="text-sm text-[#64748b]">No picks today</span>
               }
             </div>
             {nhlBets.length > 0
               ? <EvTable bets={nhlBets} />
               : (
-                <div className="rounded-lg border border-[#1a3050] bg-[#0a0f1e] p-8 text-center text-sm text-[#4b5563]">
+                <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-8 text-center text-sm text-[#64748b]">
                   No qualifying NHL bets today.
                 </div>
               )
@@ -199,15 +199,22 @@ export default async function Home() {
         </div>
       )}
 
-      {/* Legend + footer */}
-      <div className="mt-10 pt-6 border-t border-[#1a3050] space-y-1">
-        <p className="text-xs text-[#4b5563]">
-          <span className="text-[#22d3ee]">↑</span> line moved confirming our model ·{" "}
-          <span className="text-[#f87171]">↓</span> line moved against (already filtered ≥3pp) ·{" "}
-          <span className="text-[#4b5563]">—</span> neutral ·{" "}
-          <strong className="text-[#6b7280]">Pin. Mkt%</strong> = Pinnacle vig-free probability
-        </p>
-        <p className="text-xs text-[#374151]">
+      {/* Column explainer */}
+      <div className="mt-10 pt-6 border-t border-[#1a3050]">
+        <p className="text-xs font-semibold uppercase tracking-widest text-[#64748b] mb-3">How to read this</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 text-xs text-[#7f8ea3] leading-relaxed">
+          <p><span className="text-[#94a3b8] font-medium">Our Win %</span> — The probability our model gives this team of winning.</p>
+          <p><span className="text-[#94a3b8] font-medium">Market Win %</span> — The implied probability baked into the sportsbook&apos;s odds (vig-free).</p>
+          <p><span className="text-[#22d3ee] font-medium">Edge</span> — How much higher our win % is vs. the market. This is your mathematical advantage.</p>
+          <p><span className="text-[#06b6d4] font-medium">Profit / $100</span> — Expected long-term profit on every $100 bet, based on our model.</p>
+          <p><span className="text-[#94a3b8] font-medium">Bet Size</span> — Suggested % of bankroll to wager (conservative, capped at 5%).</p>
+          <p>
+            <span className="text-[#22d3ee] font-medium">Sharp ▲</span> — Betting lines are shifting in our direction;
+            professional bettors appear to agree.{" "}
+            <span className="text-[#f87171] font-medium">Fading ▼</span> — Lines moving slightly against (still qualifies).
+          </p>
+        </div>
+        <p className="text-xs text-[#374151] mt-4">
           For informational purposes only. EdgeShift picks are not gambling advice.
         </p>
       </div>
