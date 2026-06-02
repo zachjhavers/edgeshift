@@ -112,8 +112,7 @@ def fetch_probable_starters(date: str) -> dict:
     )
     try:
         resp = requests.get(url, timeout=10, headers={
-            "User-Agent": "Mozilla/5.0",
-            "Accept":     "application/json",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
         })
         resp.raise_for_status()
     except Exception as e:
