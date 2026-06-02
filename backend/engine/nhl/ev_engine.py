@@ -20,7 +20,7 @@ from pathlib import Path
 DB_PATH = Path(os.getenv("NHL_DB_PATH", str(Path(__file__).parent / "nhl_predictor.db")))
 
 STAKE             = 100.0
-EV_THRESHOLD      = 15.0
+EV_THRESHOLD      = 5.0
 MIN_MARKET_EDGE   = 0.04
 MAX_MARKET_EDGE   = 0.07
 LINE_MOVE_VETO_PP = 0.03   # veto if line moved >=3pp against our side

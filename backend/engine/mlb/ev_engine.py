@@ -47,7 +47,7 @@ PREDICTIONS_PATH = os.path.join(os.path.dirname(__file__), "bets_log.csv")
 EV_BETS_PATH     = os.path.join(os.path.dirname(__file__), "ev_bets.csv")
 
 STAKE           = 100.0
-EV_THRESHOLD    = 15.0   # minimum EV per $100 staked to log a bet
+EV_THRESHOLD    = 5.0    # minimum EV per $100 staked to log a bet
 
 # Pinnacle vig-free edge gates.
 # Tightened MAX to 7pp (from 10pp) — published research shows the market wins
