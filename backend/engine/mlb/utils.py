@@ -77,6 +77,32 @@ FEATURES = [
     "precip_probability",
 ]
 
+# Half-game features: each row represents one team's scoring half.
+# "off_" = batting team, "def_" = opposing pitcher/bullpen.
+HALF_GAME_FEATURES = [
+    # Batting team offense
+    "off_xwoba",
+    "off_rs_l15",
+    "off_barrel_rate",
+    "off_hard_hit_rate",
+    # Opposing starter
+    "def_starter_k_pct",
+    "def_starter_bb_pct",
+    "def_starter_xfip",
+    "def_starter_xwoba_against",
+    "def_starter_gb_rate",
+    # Opposing bullpen
+    "def_bullpen_k_pct",
+    # Context
+    "home_park_factor",
+    "wind_component_out",
+    "temperature_f",
+    "umpire_k_rate",
+    "is_home",
+    "team_rest_days",
+]
+
+# Legacy — kept for moneyline model compatibility
 TOTALS_FEATURES = [
     "home_rs_l15", "away_rs_l15",
     "home_ra_l15", "away_ra_l15",

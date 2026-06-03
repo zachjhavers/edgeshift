@@ -105,6 +105,24 @@ def get_team_rolling_stats(team: str, df_games: pd.DataFrame,
     }
 
 
+def get_team_batting_advanced(team: str, df_games: pd.DataFrame,
+                               window: int = TEAM_WINDOW) -> dict | None:
+    """Rolling barrel rate and hard-hit rate for a team's offense."""
+    as_home = df_games[df_games["home_team"] == team][
+        ["game_date", "home_barrel_rate", "home_hard_hit_rate"]
+    ].rename(columns={"home_barrel_rate": "barrel_rate", "home_hard_hit_rate": "hard_hit_rate"})
+    as_away = df_games[df_games["away_team"] == team][
+        ["game_date", "away_barrel_rate", "away_hard_hit_rate"]
+    ].rename(columns={"away_barrel_rate": "barrel_rate", "away_hard_hit_rate": "hard_hit_rate"})
+    combined = pd.concat([as_home, as_away]).dropna().sort_values("game_date").tail(window)
+    if len(combined) < 5:
+        return None
+    return {
+        "barrel_rate":   _ewma(combined["barrel_rate"]),
+        "hard_hit_rate": _ewma(combined["hard_hit_rate"]),
+    }
+
+
 def get_team_record(team: str, df_games: pd.DataFrame,
                     window: int = TEAM_WINDOW) -> dict | None:
     home_games = df_games[df_games["home_team"] == team][
@@ -187,14 +205,26 @@ def get_starter_rolling_stats(pitcher_id, df_starters: pd.DataFrame,
     k  = _ewma(prior["k_pct"])
     bb = _ewma(prior["bb_pct"]) if "bb_pct" in prior.columns else float("nan")
 
-    ip_total = prior["ip"].sum()     if "ip"       in prior.columns else 0.0
-    hr_total = prior["hr_count"].sum() if "hr_count" in prior.columns else 0
-    k_total  = prior["k_count"].sum()  if "k_count"  in prior.columns else 0
-    bb_total = prior["bb_count"].sum() if "bb_count" in prior.columns else 0
+    ip_total  = prior["ip"].sum()       if "ip"        in prior.columns else 0.0
+    hr_total  = prior["hr_count"].sum() if "hr_count"  in prior.columns else 0
+    k_total   = prior["k_count"].sum()  if "k_count"   in prior.columns else 0
+    bb_total  = prior["bb_count"].sum() if "bb_count"  in prior.columns else 0
+    fb_total  = prior["fb_count"].sum() if "fb_count"  in prior.columns else 0
+    hbp_total = prior["hbp_count"].sum() if "hbp_count" in prior.columns else 0
+    gb_total  = prior["gb_count"].sum() if "gb_count"  in prior.columns else 0
+    bip_total = prior["bip_count"].sum() if "bip_count" in prior.columns else 0
+
     fip = (
         (13 * hr_total + 3 * bb_total - 2 * k_total) / ip_total + _FIP_CONSTANT
         if ip_total > 0 else float("nan")
     )
+    # xFIP: normalise HR using league-average HR/FB rate (~13%)
+    _LG_HR_FB = 0.13
+    xfip = (
+        (13 * (fb_total * _LG_HR_FB) + 3 * (bb_total + hbp_total) - 2 * k_total) / ip_total + _FIP_CONSTANT
+        if ip_total > 0 and fb_total >= 0 else float("nan")
+    )
+    gb_rate = (gb_total / bip_total) if bip_total > 0 else float("nan")
 
     return {
         "velo":            _ewma(prior["avg_velo"]),
@@ -204,6 +234,8 @@ def get_starter_rolling_stats(pitcher_id, df_starters: pd.DataFrame,
         "xwoba_against":   _ewma(prior["xwoba_against"]),
         "ip":              _ewma(prior["ip"]) if "ip" in prior.columns else float("nan"),
         "fip":             fip,
+        "xfip":            xfip,
+        "gb_rate":         gb_rate,
     }
 
 
@@ -226,6 +258,38 @@ def get_bullpen_k_pct(team: str, game_date, df_bullpen_agg: pd.DataFrame,
     if len(prior) < 3:
         return None
     return float(_ewma(prior["bp_k_pct"]))
+
+
+_LG_UMPIRE_K_RATE = 0.225  # league-average K-rate fallback
+
+
+def build_umpire_k_lookup(df_umpire: pd.DataFrame) -> dict:
+    """
+    Build a lookup: {(game_date_str, home_team): umpire_k_rate}
+    df_umpire must have columns: game_date, home_team, umpire_id, game_k_rate
+    For each game, umpire_k_rate = EWMA of that umpire's prior game k-rates.
+    """
+    # Sort chronologically and compute rolling per-umpire k-rate (no lookahead)
+    df_umpire = df_umpire.sort_values("game_date").reset_index(drop=True)
+    lookup: dict[tuple, float] = {}
+    ump_history: dict[int, list] = {}
+
+    for _, row in df_umpire.iterrows():
+        uid  = int(row["umpire_id"]) if pd.notna(row["umpire_id"]) else -1
+        gk   = float(row["game_k_rate"]) if pd.notna(row["game_k_rate"]) else _LG_UMPIRE_K_RATE
+        key  = (str(row["game_date"])[:10], row["home_team"])
+
+        hist = ump_history.get(uid, [])
+        if len(hist) >= 3:
+            s = pd.Series(hist[-20:])
+            rate = float(s.ewm(alpha=EWMA_ALPHA, adjust=False).mean().iloc[-1])
+        else:
+            rate = _LG_UMPIRE_K_RATE
+
+        lookup[key] = rate
+        ump_history.setdefault(uid, []).append(gk)
+
+    return lookup
 
 
 def build_bullpen_agg(df_pitcher: pd.DataFrame) -> pd.DataFrame:

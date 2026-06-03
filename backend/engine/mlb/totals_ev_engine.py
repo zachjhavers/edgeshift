@@ -1,37 +1,38 @@
 """
-MLB Totals EV Engine.
+MLB Totals EV Engine v2.
 
-For each game with a stored O/U line:
-  1. Build the same features used by totals_model.py
-  2. Predict mean total runs via the XGBoost regressor
-  3. Compute P(over) = norm.sf(line, predicted_mean, residual_std)
-  4. Compare to Pinnacle vig-free over probability
-  5. If edge 4-7pp and EV > $5/100, write to mlb_totals_ev_bets
-
-Run standalone: python totals_ev_engine.py
+Uses the half-game XGBoost model (totals_model.py):
+  1. Predict home_runs and away_runs separately
+  2. Sum for predicted total
+  3. P(over/under) via Negative Binomial CDF with fitted alpha
+  4. Edge vs Pinnacle vig-free probability, same gates as moneyline
 """
 
 import os
 import warnings
 from datetime import datetime
-from scipy.stats import norm
 
 import joblib
 import numpy as np
 import pandas as pd
 import requests
+from scipy.stats import nbinom
 from sqlalchemy import text
 
 from db import get_engine
 from feature_helpers import (
     build_bullpen_agg,
+    build_umpire_k_lookup,
     get_bullpen_k_pct,
     get_rest_days,
     get_starter_rolling_stats,
+    get_team_batting_advanced,
     get_team_record,
     get_team_rolling_stats,
+    _LG_UMPIRE_K_RATE,
 )
-from utils import MLB_TEAM_MAP, PARK_FACTORS, TOTALS_FEATURES
+from totals_model import _GAME_SQL, _PITCHER_SQL, _UMPIRE_SQL
+from utils import HALF_GAME_FEATURES, MLB_TEAM_MAP, PARK_FACTORS
 from weather import LEAGUE_AVG_WEATHER, get_game_weather
 
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -44,8 +45,8 @@ MAX_MARKET_EDGE = 0.07
 LINE_MOVE_VETO  = 0.03
 
 
-def _kelly_pct(prob: float, decimal_odds: float) -> float:
-    b = decimal_odds - 1.0
+def _kelly_pct(prob: float, dec_odds: float) -> float:
+    b = dec_odds - 1.0
     q = 1.0 - prob
     raw = (b * prob - q) / b if b > 0 else 0.0
     return min(max(raw * 0.25, 0.0), 0.05) * 100.0
@@ -55,6 +56,14 @@ def _vig_free_over(over_odds: float, under_odds: float) -> float:
     raw_o = 1.0 / over_odds
     raw_u = 1.0 / under_odds
     return raw_o / (raw_o + raw_u)
+
+
+def _p_over_negbin(mu: float, line: float, alpha: float) -> float:
+    """P(actual total > line) using Negative Binomial with fitted dispersion alpha."""
+    mu    = max(mu, 0.5)
+    p     = alpha / (alpha + mu)
+    floor_l = int(line)          # P(X > 8.5) = P(X >= 9) = P(X > 8)
+    return float(nbinom.sf(floor_l, alpha, p))
 
 
 def _ensure_table(engine) -> None:
@@ -86,10 +95,8 @@ def _ensure_table(engine) -> None:
 
 
 def _fetch_probable_starters(date: str) -> dict:
-    url = (
-        f"https://statsapi.mlb.com/api/v1/schedule"
-        f"?sportId=1&date={date}&hydrate=probablePitcher"
-    )
+    url = (f"https://statsapi.mlb.com/api/v1/schedule"
+           f"?sportId=1&date={date}&hydrate=probablePitcher")
     try:
         resp = requests.get(url, timeout=10, headers={
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
@@ -114,81 +121,65 @@ def _fetch_probable_starters(date: str) -> dict:
 
 
 def run_totals_predictions():
-    print("--- MLB Totals EV Engine ---")
+    print("--- MLB Totals EV Engine v2 ---")
     engine = get_engine()
 
     try:
         saved        = joblib.load(MODEL_PATH)
         model        = saved["xgb"]
-        residual_std = float(saved["residual_std"])
+        negbin_alpha = float(saved["negbin_alpha"])
     except FileNotFoundError:
         print("Totals model not found. Run totals_model.py first.")
         return []
 
     today = datetime.now().strftime("%Y-%m-%d")
 
-    # Use the earliest upcoming date in the totals odds table (handles UTC crossover)
+    # Use earliest upcoming date in totals odds table
     try:
-        target_row = engine.connect().execute(
-            text("SELECT MIN(game_date) FROM historical_totals_odds WHERE game_date >= :today"),
-            {"today": today}
-        ).fetchone()
-        target_date = target_row[0] if target_row and target_row[0] else today
+        with engine.connect() as c:
+            row = c.execute(
+                text("SELECT MIN(game_date) FROM historical_totals_odds WHERE game_date >= :today"),
+                {"today": today}
+            ).fetchone()
+        target_date = row[0] if row and row[0] else today
     except Exception:
         target_date = today
 
-    # Load game data for feature building
-    df_games = pd.read_sql(text("""
-        SELECT game_pk, game_date, home_team, away_team,
-               MAX(home_score) AS final_home_score,
-               MAX(away_score) AS final_away_score,
-               AVG(CASE WHEN inning_topbot='Top' THEN release_speed END)                   AS home_pitch_velo,
-               AVG(CASE WHEN inning_topbot='Bot' THEN release_speed END)                   AS away_pitch_velo,
-               AVG(CASE WHEN inning_topbot='Bot' THEN launch_speed END)                    AS home_bat_exit_velo,
-               AVG(CASE WHEN inning_topbot='Top' THEN launch_speed END)                    AS away_bat_exit_velo,
-               AVG(CASE WHEN inning_topbot='Bot' THEN estimated_woba_using_speedangle END) AS home_xwoba,
-               AVG(CASE WHEN inning_topbot='Top' THEN estimated_woba_using_speedangle END) AS away_xwoba
-        FROM statcast_raw
-        WHERE game_type='R' AND game_date < :today
-        GROUP BY game_pk, game_date, home_team, away_team
-        HAVING MAX(home_score) IS NOT NULL
-        ORDER BY game_date
-    """), engine, params={"today": today}, parse_dates=["game_date"])
+    # Historical games for rolling features
+    df_games = pd.read_sql(
+        text(_GAME_SQL.replace("WHERE game_type = 'R'",
+                               "WHERE game_type = 'R' AND game_date < :today")),
+        engine, params={"today": today}, parse_dates=["game_date"]
+    )
     df_games["home_win"] = (df_games["final_home_score"] > df_games["final_away_score"]).astype(int)
+    df_games = df_games.dropna(subset=["home_xwoba", "away_xwoba"]).reset_index(drop=True)
 
-    pitcher_q = text("""
-        SELECT game_pk, game_date, home_team, away_team, pitcher, inning_topbot,
-               AVG(release_speed) AS avg_velo,
-               CAST(SUM(CASE WHEN events='strikeout' THEN 1 ELSE 0 END) AS REAL) /
-                   NULLIF(SUM(CASE WHEN events IS NOT NULL THEN 1 ELSE 0 END), 0) AS k_pct,
-               CAST(SUM(CASE WHEN events IN ('walk','intent_walk') THEN 1 ELSE 0 END) AS REAL) /
-                   NULLIF(SUM(CASE WHEN events IS NOT NULL THEN 1 ELSE 0 END), 0) AS bb_pct,
-               AVG(estimated_woba_using_speedangle) AS xwoba_against,
-               SUM(CASE WHEN events='home_run' THEN 1 ELSE 0 END) AS hr_count,
-               SUM(CASE WHEN events='strikeout' THEN 1 ELSE 0 END) AS k_count,
-               SUM(CASE WHEN events IN ('walk','intent_walk') THEN 1 ELSE 0 END) AS bb_count,
-               COUNT(*) AS pitch_count,
-               SUM(CASE
-                   WHEN events IN ('strikeout','field_out','force_out','sac_bunt','sac_fly',
-                                   'fielders_choice_out','other_out','caught_stealing_2b',
-                                   'caught_stealing_3b','caught_stealing_home',
-                                   'pickoff_caught_stealing_2b','pickoff_caught_stealing_3b',
-                                   'pickoff_caught_stealing_home','sac_bunt_double_play') THEN 1
-                   WHEN events IN ('grounded_into_double_play','strikeout_double_play',
-                                   'double_play','sac_fly_double_play') THEN 2
-                   WHEN events = 'triple_play' THEN 3
-                   ELSE 0 END) * 1.0 / 3.0 AS ip
-        FROM statcast_raw WHERE game_type='R' AND game_date < :today
-        GROUP BY game_pk, game_date, home_team, away_team, pitcher, inning_topbot
-    """)
-    df_pitcher  = pd.read_sql(pitcher_q, engine, params={"today": today}, parse_dates=["game_date"])
+    # Pitcher data
+    df_pitcher = pd.read_sql(
+        text(_PITCHER_SQL.replace("WHERE game_type = 'R'",
+                                  "WHERE game_type = 'R' AND game_date < :today")),
+        engine, params={"today": today}, parse_dates=["game_date"]
+    )
     starter_idx = df_pitcher.groupby(["game_pk", "inning_topbot"])["pitch_count"].idxmax()
     df_pitcher["is_starter"] = False
     df_pitcher.loc[starter_idx, "is_starter"] = True
     df_starters    = df_pitcher.loc[starter_idx].reset_index(drop=True)
     df_bullpen_agg = build_bullpen_agg(df_pitcher)
 
-    # Today's totals odds
+    # Umpire lookup (rolling from history)
+    umpire_lookup: dict = {}
+    try:
+        df_ump = pd.read_sql(
+            text(_UMPIRE_SQL.replace("WHERE game_type='R' AND umpire IS NOT NULL",
+                                     "WHERE game_type='R' AND umpire IS NOT NULL AND game_date < :today")),
+            engine, params={"today": today}, parse_dates=["game_date"]
+        )
+        df_ump["game_date"] = df_ump["game_date"].astype(str).str[:10]
+        umpire_lookup = build_umpire_k_lookup(df_ump)
+    except Exception:
+        pass
+
+    # Totals odds for target date
     try:
         odds_df = pd.read_sql(text("""
             SELECT home_team, away_team, over_line,
@@ -204,115 +195,112 @@ def run_totals_predictions():
         return []
 
     if odds_df.empty:
-        print("  No totals odds for today.")
+        print(f"  No totals odds for {target_date}.")
         return []
 
-    totals_lookup = {}
-    for _, r in odds_df.iterrows():
-        totals_lookup[(r["home_team"], r["away_team"])] = dict(r)
+    totals_lookup = {(r["home_team"], r["away_team"]): dict(r) for _, r in odds_df.iterrows()}
 
     probable_starters = _fetch_probable_starters(target_date)
     if not probable_starters:
         print("  No games found.")
         return []
 
-    weather_cache = {}
-    for home, _ in probable_starters:
-        weather_cache[home] = get_game_weather(home)
+    weather_cache = {home: get_game_weather(home) for home, _ in probable_starters}
+    today_ts = pd.Timestamp(target_date)
 
-    today_ts = pd.Timestamp(today)
-    rows = []
+    ev_bets = []
+    _ensure_table(engine)
+
     for (home, away), (home_sp_id, away_sp_id) in probable_starters.items():
         odict = totals_lookup.get((home, away))
         if not odict or odict.get("over_line") is None:
             continue
 
-        team_h = get_team_rolling_stats(home, df_games)
-        team_a = get_team_rolling_stats(away, df_games)
-        if team_h is None or team_a is None:
+        # Rolling stats
+        home_off = get_team_rolling_stats(home, df_games)
+        away_off = get_team_rolling_stats(away, df_games)
+        if not home_off or not away_off:
             continue
-        rec_h = get_team_record(home, df_games)
-        rec_a = get_team_record(away, df_games)
-        if rec_h is None or rec_a is None:
+        home_bat = get_team_batting_advanced(home, df_games)
+        away_bat = get_team_batting_advanced(away, df_games)
+        if not home_bat or not away_bat:
             continue
-        sp_h = get_starter_rolling_stats(home_sp_id, df_starters)
-        sp_a = get_starter_rolling_stats(away_sp_id, df_starters)
-        if sp_h is None or sp_a is None:
+        home_rec = get_team_record(home, df_games)
+        away_rec = get_team_record(away, df_games)
+        if not home_rec or not away_rec:
+            continue
+        home_sp = get_starter_rolling_stats(home_sp_id, df_starters)
+        away_sp = get_starter_rolling_stats(away_sp_id, df_starters)
+        if home_sp is None or away_sp is None:
             print(f"  Skipping {away} @ {home} — starter data unavailable.")
             continue
-        bp_h = get_bullpen_k_pct(home, today_ts, df_bullpen_agg)
-        bp_a = get_bullpen_k_pct(away, today_ts, df_bullpen_agg)
-        if bp_h is None or bp_a is None:
+        home_bp = get_bullpen_k_pct(home, today_ts, df_bullpen_agg)
+        away_bp = get_bullpen_k_pct(away, today_ts, df_bullpen_agg)
+        if home_bp is None or away_bp is None:
             continue
 
-        rest_h = get_rest_days(home, today_ts, df_games)
-        rest_a = get_rest_days(away, today_ts, df_games)
         wx     = weather_cache.get(home, LEAGUE_AVG_WEATHER)
+        park_f = PARK_FACTORS.get(home, 1.0)
+        ump_k  = umpire_lookup.get((target_date, home), _LG_UMPIRE_K_RATE)
 
-        rows.append({
-            "home_team": home,
-            "away_team": away,
-            "home_rs_l15":                rec_h["runs_scored"],
-            "away_rs_l15":                rec_a["runs_scored"],
-            "home_ra_l15":                rec_h["runs_allowed"],
-            "away_ra_l15":                rec_a["runs_allowed"],
-            "home_xwoba":                 team_h["xwoba"],
-            "away_xwoba":                 team_a["xwoba"],
-            "home_starter_k_pct":         sp_h["k_pct"],
-            "away_starter_k_pct":         sp_a["k_pct"],
-            "home_starter_bb_pct":        sp_h["bb_pct"],
-            "away_starter_bb_pct":        sp_a["bb_pct"],
-            "home_starter_fip":           sp_h["fip"],
-            "away_starter_fip":           sp_a["fip"],
-            "home_starter_xwoba_against": sp_h["xwoba_against"],
-            "away_starter_xwoba_against": sp_a["xwoba_against"],
-            "home_starter_ip":            sp_h["ip"],
-            "away_starter_ip":            sp_a["ip"],
-            "home_bullpen_k_pct":         bp_h,
-            "away_bullpen_k_pct":         bp_a,
-            "home_park_factor":           PARK_FACTORS.get(home, 1.0),
-            "wind_component_out":         wx["wind_component_out"],
-            "wind_speed_mph":             wx["wind_speed_mph"],
-            "temperature_f":              wx["temperature_f"],
-            "home_rest_days":             rest_h,
-            "away_rest_days":             rest_a,
-        })
+        common = {
+            "home_park_factor":    park_f,
+            "wind_component_out":  wx["wind_component_out"],
+            "temperature_f":       wx["temperature_f"],
+            "umpire_k_rate":       ump_k,
+        }
 
-    if not rows:
-        print("  Could not build features for any game.")
-        return []
+        # HOME half: home offense vs away starter
+        home_row = {
+            **common,
+            "off_xwoba":                  home_off["xwoba"],
+            "off_rs_l15":                 home_rec["runs_scored"],
+            "off_barrel_rate":            home_bat["barrel_rate"],
+            "off_hard_hit_rate":          home_bat["hard_hit_rate"],
+            "def_starter_k_pct":          away_sp["k_pct"],
+            "def_starter_bb_pct":         away_sp["bb_pct"],
+            "def_starter_xfip":           away_sp["xfip"],
+            "def_starter_xwoba_against":  away_sp["xwoba_against"],
+            "def_starter_gb_rate":        away_sp["gb_rate"],
+            "def_bullpen_k_pct":          away_bp,
+            "is_home":                    1.0,
+            "team_rest_days":             get_rest_days(home, today_ts, df_games),
+        }
 
-    df = pd.DataFrame(rows).dropna(subset=TOTALS_FEATURES)
-    if df.empty:
-        print("  All games dropped after NaN filter.")
-        return []
+        # AWAY half: away offense vs home starter
+        away_row = {
+            **common,
+            "off_xwoba":                  away_off["xwoba"],
+            "off_rs_l15":                 away_rec["runs_scored"],
+            "off_barrel_rate":            away_bat["barrel_rate"],
+            "off_hard_hit_rate":          away_bat["hard_hit_rate"],
+            "def_starter_k_pct":          home_sp["k_pct"],
+            "def_starter_bb_pct":         home_sp["bb_pct"],
+            "def_starter_xfip":           home_sp["xfip"],
+            "def_starter_xwoba_against":  home_sp["xwoba_against"],
+            "def_starter_gb_rate":        home_sp["gb_rate"],
+            "def_bullpen_k_pct":          home_bp,
+            "is_home":                    0.0,
+            "team_rest_days":             get_rest_days(away, today_ts, df_games),
+        }
 
-    predicted_totals = model.predict(df[TOTALS_FEATURES])
-    df["predicted_total"] = predicted_totals
-
-    ev_bets = []
-    _ensure_table(engine)
-
-    for i, row in df.iterrows():
-        home  = row["home_team"]
-        away  = row["away_team"]
-        pred  = float(row["predicted_total"])
-        odict = totals_lookup.get((home, away))
-        if not odict:
+        feat_df = pd.DataFrame([home_row, away_row])[HALF_GAME_FEATURES]
+        if feat_df.isnull().any().any():
             continue
 
-        line = float(odict["over_line"])
-        pin_o = odict.get("pinnacle_over_odds")
-        pin_u = odict.get("pinnacle_under_odds")
+        half_preds   = model.predict(feat_df)
+        pred_total   = float(half_preds[0] + half_preds[1])
 
+        line   = float(odict["over_line"])
+        pin_o  = odict.get("pinnacle_over_odds")
+        pin_u  = odict.get("pinnacle_under_odds")
         if not pin_o or not pin_u:
             continue
 
-        pin_o, pin_u = float(pin_o), float(pin_u)
+        pin_o, pin_u  = float(pin_o), float(pin_u)
         pin_over_prob = _vig_free_over(pin_o, pin_u)
 
-        # P(over) from our regression: normal CDF with half-integer adjustment
-        p_over  = float(norm.sf(line, pred, residual_std))
+        p_over  = _p_over_negbin(pred_total, line, negbin_alpha)
         p_under = 1.0 - p_over
 
         best_over  = float(odict["best_over_odds"])  if odict.get("best_over_odds")  else pin_o
@@ -320,69 +308,59 @@ def run_totals_predictions():
         best_o_book = odict.get("best_over_book")  or "pinnacle"
         best_u_book = odict.get("best_under_book") or "pinnacle"
 
-        # Line move direction (vs opening Pinnacle)
+        # Line move direction
         opening_pin_o = odict.get("opening_pinnacle_over_odds")
-        lm_dir = 0
-        if opening_pin_o and pin_o:
-            current_pp = _vig_free_over(float(pin_o), float(pin_u))
-            opening_pp = _vig_free_over(float(opening_pin_o), float(pin_u))
-            delta_over = current_pp - opening_pp
-            if abs(delta_over) >= 0.015:
-                lm_dir_over  = 1 if delta_over > 0 else -1
-                lm_dir_under = -lm_dir_over
+        lm_over = lm_under = 0
+        if opening_pin_o:
+            delta = _vig_free_over(pin_o, pin_u) - _vig_free_over(float(opening_pin_o), pin_u)
+            if abs(delta) >= 0.015:
+                lm_over  =  1 if delta > 0 else -1
+                lm_under = -lm_over
 
         matchup = f"{away} @ {home}"
-
+        candidates = []
         for side, prob, mkt_prob, dec_odds, book, lm in [
-            ("over",  p_over,  pin_over_prob,       best_over,  best_o_book, lm_dir if lm_dir != 0 else 0),
-            ("under", p_under, 1 - pin_over_prob,   best_under, best_u_book, -lm_dir if lm_dir != 0 else 0),
+            ("over",  p_over,  pin_over_prob,     best_over,  best_o_book, lm_over),
+            ("under", p_under, 1-pin_over_prob,   best_under, best_u_book, lm_under),
         ]:
             edge = prob - mkt_prob
             if not (MIN_MARKET_EDGE <= edge <= MAX_MARKET_EDGE):
                 continue
-
             ev = round((prob * (dec_odds - 1) * STAKE) - ((1 - prob) * STAKE), 2)
             if ev < EV_THRESHOLD:
                 continue
-
-            # Line move veto
             if lm == -1:
                 print(f"  VETO {side} {matchup}: line moved against.")
                 continue
-
             label = f"Over {line}" if side == "over" else f"Under {line}"
-            ev_bets.append({
-                "game_date":          target_date,
-                "matchup":            matchup,
-                "side":               side,
-                "label":              label,
-                "total_line":         line,
-                "predicted_total":    round(pred, 2),
-                "model_prob":         round(prob, 4),
-                "market_prob":        round(mkt_prob, 4),
-                "pinnacle_prob":      round(mkt_prob, 4),
-                "edge_vs_market":     round(edge, 4),
-                "entry_odds":         round(dec_odds, 3),
-                "entry_book":         book,
-                "ev":                 ev,
-                "kelly_pct":          round(_kelly_pct(prob, dec_odds), 2),
+            candidates.append({
+                "game_date":           target_date,
+                "matchup":             matchup,
+                "side":                side,
+                "label":               label,
+                "total_line":          line,
+                "predicted_total":     round(pred_total, 2),
+                "model_prob":          round(prob, 4),
+                "market_prob":         round(mkt_prob, 4),
+                "pinnacle_prob":       round(mkt_prob, 4),
+                "edge_vs_market":      round(edge, 4),
+                "entry_odds":          round(dec_odds, 3),
+                "entry_book":          book,
+                "ev":                  ev,
+                "kelly_pct":           round(_kelly_pct(prob, dec_odds), 2),
                 "line_move_direction": lm,
             })
 
-    # One bet per game — keep the higher-EV side only
-    seen: dict[str, dict] = {}
-    for b in ev_bets:
-        key = b["matchup"]
-        if key not in seen or b["ev"] > seen[key]["ev"]:
-            seen[key] = b
-    ev_bets = sorted(seen.values(), key=lambda x: x["ev"], reverse=True)
+        # One bet per game — highest EV side only
+        if candidates:
+            ev_bets.append(max(candidates, key=lambda x: x["ev"]))
+
+    ev_bets.sort(key=lambda x: x["ev"], reverse=True)
 
     if ev_bets:
         with engine.begin() as conn:
-            # Clear today's entries first so stale over/under from prior runs don't linger
-            conn.execute(text(
-                "DELETE FROM mlb_totals_ev_bets WHERE game_date = :d"
-            ), {"d": target_date})
+            conn.execute(text("DELETE FROM mlb_totals_ev_bets WHERE game_date = :d"),
+                         {"d": target_date})
             for b in ev_bets:
                 conn.execute(text("""
                     INSERT INTO mlb_totals_ev_bets
@@ -393,20 +371,6 @@ def run_totals_predictions():
                         (:game_date, :matchup, :side, :label, :total_line, :predicted_total,
                          :model_prob, :market_prob, :pinnacle_prob, :edge_vs_market,
                          :entry_odds, :entry_book, :ev, :kelly_pct, :line_move_direction)
-                    ON CONFLICT (game_date, matchup, side) DO UPDATE SET
-                        label               = EXCLUDED.label,
-                        total_line          = EXCLUDED.total_line,
-                        predicted_total     = EXCLUDED.predicted_total,
-                        model_prob          = EXCLUDED.model_prob,
-                        market_prob         = EXCLUDED.market_prob,
-                        pinnacle_prob       = EXCLUDED.pinnacle_prob,
-                        edge_vs_market      = EXCLUDED.edge_vs_market,
-                        entry_odds          = EXCLUDED.entry_odds,
-                        entry_book          = EXCLUDED.entry_book,
-                        ev                  = EXCLUDED.ev,
-                        kelly_pct           = EXCLUDED.kelly_pct,
-                        line_move_direction = EXCLUDED.line_move_direction,
-                        updated_at          = datetime('now')
                 """), b)
         print(f"  {len(ev_bets)} totals EV bet(s) written.")
     else:
@@ -416,12 +380,11 @@ def run_totals_predictions():
     for b in ev_bets:
         print(
             f"  {b['matchup']:<20} {b['label']:<12} "
-            f"odds {b['entry_odds']:.3f} at {b['entry_book']:<10} "
+            f"pred {b['predicted_total']:.1f}  odds {b['entry_odds']:.3f} at {b['entry_book']:<10} "
             f"model {b['model_prob']*100:.1f}%  mkt {b['market_prob']*100:.1f}%  "
             f"edge +{b['edge_vs_market']*100:.1f}pp  EV ${b['ev']:.0f}  "
             f"{lm_sym.get(b['line_move_direction'], '—')}"
         )
-
     return ev_bets
 
 
