@@ -169,11 +169,13 @@ function TotalsCard({ b }: { b: MLBTotalsEvBet }) {
 }
 
 export default async function Home() {
+  const today = new Date().toISOString().slice(0, 10);
+
   const [mlbResult, nhlResult, nbaResult, mlbTotalsResult] = await Promise.allSettled([
-    api.mlb.evBets(),
-    api.nhl.evBets(),
-    api.nba.evBets(),
-    api.mlb.totalsEvBets(),
+    api.mlb.evBets(today),
+    api.nhl.evBets(today),
+    api.nba.evBets(today),
+    api.mlb.totalsEvBets(today),
   ]);
 
   const mlbBets = mlbResult.status === "fulfilled"
@@ -189,11 +191,7 @@ export default async function Home() {
     ? (mlbTotalsResult.value.bets ?? [])
     : [];
 
-  const date =
-    (mlbResult.status === "fulfilled" && mlbResult.value.date) ||
-    (nhlResult.status === "fulfilled" && nhlResult.value.date) ||
-    (nbaResult.status === "fulfilled" && nbaResult.value.date) ||
-    new Date().toISOString().slice(0, 10);
+  const date = today;
 
   const noPicksToday = mlbBets.length === 0 && nhlBets.length === 0 && nbaBets.length === 0 && mlbTotalsBets.length === 0;
 
