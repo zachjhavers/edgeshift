@@ -309,6 +309,73 @@ def get_ev_bets(date: Optional[str] = Query(None)):
     return {"date": date, "total": len(bets), "bets": bets}
 
 
+@router.get("/totals-ev-bets")
+def get_totals_ev_bets(date: Optional[str] = Query(None)):
+    """Return +EV totals (over/under) bets for a given date."""
+    try:
+        engine = _get_pg_engine()
+        df = pd.read_sql(text("""
+            SELECT
+                game_date AS date,
+                matchup, side, label, total_line, predicted_total,
+                model_prob, market_prob, pinnacle_prob, edge_vs_market,
+                entry_odds, entry_book,
+                ev, kelly_pct, line_move_direction, result
+            FROM mlb_totals_ev_bets
+            ORDER BY game_date DESC, ev DESC
+        """), engine)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("mlb_totals_ev_bets unavailable (%s)", e)
+        return {"date": None, "total": 0, "bets": []}
+
+    if df.empty:
+        return {"date": None, "total": 0, "bets": []}
+
+    if date is None:
+        date = df["date"].max()
+
+    day = df[df["date"] == date]
+    if day.empty:
+        return {"date": date, "total": 0, "bets": []}
+
+    bets = []
+    for _, row in day.iterrows():
+        def _f(col, digits=4):
+            try:
+                v = row.get(col)
+                return round(float(v), digits) if v is not None and pd.notna(v) else None
+            except (TypeError, ValueError):
+                return None
+
+        lm = row.get("line_move_direction")
+        try:
+            lm = int(lm) if lm is not None and pd.notna(lm) else 0
+        except (TypeError, ValueError):
+            lm = 0
+
+        bets.append({
+            "date":               str(row["date"]),
+            "matchup":            str(row["matchup"]),
+            "side":               str(row["side"]),
+            "label":              str(row.get("label", "")),
+            "total_line":         _f("total_line", 1),
+            "predicted_total":    _f("predicted_total", 2),
+            "model_prob":         _f("model_prob"),
+            "market_prob":        _f("market_prob"),
+            "pinnacle_prob":      _f("pinnacle_prob"),
+            "edge_vs_market":     _f("edge_vs_market"),
+            "entry_odds":         _f("entry_odds", 3),
+            "entry_book":         str(row.get("entry_book") or ""),
+            "ev":                 _f("ev", 2),
+            "kelly_pct":          _f("kelly_pct", 2),
+            "line_move_direction": lm,
+            "result":             str(row.get("result", "TBD")),
+        })
+
+    return {"date": date, "total": len(bets), "bets": bets}
+
+
 @router.get("/clv-summary")
 def get_clv_summary():
     """

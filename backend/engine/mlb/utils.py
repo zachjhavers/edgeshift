@@ -77,6 +77,23 @@ FEATURES = [
     "precip_probability",
 ]
 
+TOTALS_FEATURES = [
+    "home_rs_l15", "away_rs_l15",
+    "home_ra_l15", "away_ra_l15",
+    "home_xwoba", "away_xwoba",
+    "home_starter_k_pct", "away_starter_k_pct",
+    "home_starter_bb_pct", "away_starter_bb_pct",
+    "home_starter_fip", "away_starter_fip",
+    "home_starter_xwoba_against", "away_starter_xwoba_against",
+    "home_starter_ip", "away_starter_ip",
+    "home_bullpen_k_pct", "away_bullpen_k_pct",
+    "home_park_factor",
+    "wind_component_out",
+    "wind_speed_mph",
+    "temperature_f",
+    "home_rest_days", "away_rest_days",
+]
+
 # Park run factors — 2024-25 approximations. Higher = more offense.
 PARK_FACTORS = {
     "COL": 1.28, "TEX": 1.12, "CIN": 1.10, "MIL": 1.06,

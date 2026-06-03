@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { MLBEvBet, NBAEvBet, NHLEvBet } from "@/lib/api";
+import type { MLBEvBet, MLBTotalsEvBet, NBAEvBet, NHLEvBet } from "@/lib/api";
 
 export const revalidate = 300;
 
@@ -125,11 +125,55 @@ function BetCard({ b }: { b: UnifiedBet }) {
   );
 }
 
+function TotalsCard({ b }: { b: MLBTotalsEvBet }) {
+  return (
+    <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-5">
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <div className="text-xl font-bold text-white leading-tight">{b.label}</div>
+          <div className="text-sm text-[#64748b] mt-1">{b.matchup}</div>
+        </div>
+        <div className="flex flex-col items-end gap-1.5 shrink-0 ml-4">
+          <Signal lm={b.line_move_direction} />
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-mono text-[#cbd5e1] text-sm font-medium">{b.entry_odds.toFixed(3)}</span>
+            <span className="text-[#4b5563] text-xs">at</span>
+            <span className="text-[#64748b] text-xs">{b.entry_book}</span>
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-x-4 gap-y-3 pt-4 border-t border-[#1a3050]">
+        <div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Our P({b.side})</div>
+          <div className="text-[#cbd5e1] font-semibold text-sm">{(b.model_prob * 100).toFixed(1)}%</div>
+        </div>
+        <div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Market P</div>
+          <div className="text-[#94a3b8] text-sm">{(b.market_prob * 100).toFixed(1)}%</div>
+        </div>
+        <div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Edge</div>
+          <div className="text-[#22d3ee] font-semibold text-sm">+{(b.edge_vs_market * 100).toFixed(1)}pp</div>
+        </div>
+        <div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Profit / $100</div>
+          <div className="text-[#06b6d4] font-bold text-base">${b.ev.toFixed(0)}</div>
+        </div>
+        <div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Pred. Total</div>
+          <div className="text-[#94a3b8] text-sm">{b.predicted_total.toFixed(1)} runs</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default async function Home() {
-  const [mlbResult, nhlResult, nbaResult] = await Promise.allSettled([
+  const [mlbResult, nhlResult, nbaResult, mlbTotalsResult] = await Promise.allSettled([
     api.mlb.evBets(),
     api.nhl.evBets(),
     api.nba.evBets(),
+    api.mlb.totalsEvBets(),
   ]);
 
   const mlbBets = mlbResult.status === "fulfilled"
@@ -141,6 +185,9 @@ export default async function Home() {
   const nbaBets = nbaResult.status === "fulfilled"
     ? (nbaResult.value.bets ?? []).map(normalizeNBA)
     : [];
+  const mlbTotalsBets = mlbTotalsResult.status === "fulfilled"
+    ? (mlbTotalsResult.value.bets ?? [])
+    : [];
 
   const date =
     (mlbResult.status === "fulfilled" && mlbResult.value.date) ||
@@ -148,7 +195,7 @@ export default async function Home() {
     (nbaResult.status === "fulfilled" && nbaResult.value.date) ||
     new Date().toISOString().slice(0, 10);
 
-  const noPicksToday = mlbBets.length === 0 && nhlBets.length === 0 && nbaBets.length === 0;
+  const noPicksToday = mlbBets.length === 0 && nhlBets.length === 0 && nbaBets.length === 0 && mlbTotalsBets.length === 0;
 
   return (
     <div>
@@ -182,19 +229,31 @@ export default async function Home() {
           <section>
             <div className="flex items-baseline gap-3 mb-4">
               <h2 className="text-sm font-bold uppercase tracking-widest text-white">Baseball</h2>
-              {mlbBets.length > 0
-                ? <span className="text-sm text-[#64748b]">{mlbBets.length} pick{mlbBets.length !== 1 ? "s" : ""}</span>
+              {(mlbBets.length + mlbTotalsBets.length) > 0
+                ? <span className="text-sm text-[#64748b]">{mlbBets.length + mlbTotalsBets.length} pick{(mlbBets.length + mlbTotalsBets.length) !== 1 ? "s" : ""}</span>
                 : <span className="text-sm text-[#64748b]">No picks today</span>
               }
             </div>
-            {mlbBets.length > 0
-              ? <div className="space-y-3">{mlbBets.map((b, i) => <BetCard key={i} b={b} />)}</div>
-              : (
-                <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-8 text-center text-sm text-[#64748b]">
-                  No qualifying MLB bets today.
-                </div>
-              )
-            }
+
+            {mlbBets.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-semibold uppercase tracking-widest text-[#4b5563] mb-2">Moneyline</p>
+                <div className="space-y-3">{mlbBets.map((b, i) => <BetCard key={i} b={b} />)}</div>
+              </div>
+            )}
+
+            {mlbTotalsBets.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-semibold uppercase tracking-widest text-[#4b5563] mb-2">Totals</p>
+                <div className="space-y-3">{mlbTotalsBets.map((b, i) => <TotalsCard key={i} b={b} />)}</div>
+              </div>
+            )}
+
+            {mlbBets.length === 0 && mlbTotalsBets.length === 0 && (
+              <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-8 text-center text-sm text-[#64748b]">
+                No qualifying MLB bets today.
+              </div>
+            )}
           </section>
 
           {/* Hockey */}

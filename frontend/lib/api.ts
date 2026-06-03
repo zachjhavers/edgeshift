@@ -14,6 +14,8 @@ export const api = {
   mlb: {
     evBets: (date?: string) =>
       get<MLBEvBetsResponse>(`/api/mlb/ev-bets${date ? `?date=${date}` : ""}`),
+    totalsEvBets: (date?: string) =>
+      get<MLBTotalsEvBetsResponse>(`/api/mlb/totals-ev-bets${date ? `?date=${date}` : ""}`),
   },
   nhl: {
     evBets: (date?: string) =>
@@ -52,6 +54,31 @@ export interface MLBEvBetsResponse {
   date:  string | null;
   total: number;
   bets:  MLBEvBet[];
+}
+
+export interface MLBTotalsEvBet {
+  date:                string;
+  matchup:             string;
+  side:                "over" | "under";
+  label:               string;
+  total_line:          number;
+  predicted_total:     number;
+  model_prob:          number;
+  market_prob:         number;
+  pinnacle_prob:       number | null;
+  edge_vs_market:      number;
+  entry_odds:          number;
+  entry_book:          string;
+  ev:                  number;
+  kelly_pct:           number;
+  line_move_direction: number;
+  result:              string;
+}
+
+export interface MLBTotalsEvBetsResponse {
+  date:  string | null;
+  total: number;
+  bets:  MLBTotalsEvBet[];
 }
 
 // ── NHL ───────────────────────────────────────────────────────────────────────

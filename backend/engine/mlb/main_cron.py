@@ -31,9 +31,10 @@ from datetime import datetime, timedelta
 
 from db import get_engine
 from ev_engine import run_predictions
-from fetch_odds import fetch_and_store_live_odds
+from fetch_odds import fetch_and_store_live_odds, fetch_and_store_totals_odds
 from fetch_onfield import fetch_and_store_games, get_fetched_dates
 from model_builder import build_and_train_model
+from totals_ev_engine import run_totals_predictions
 from update_results import update_results
 
 
@@ -59,6 +60,15 @@ def run(pregame: bool = False):
             run_predictions()
         except Exception as e:
             msg = f"Pre-game prediction run failed: {e}"
+            log(f"ERROR — {msg}")
+            errors.append(msg)
+
+        log("Step 3: Refreshing totals odds + running totals EV engine...")
+        try:
+            fetch_and_store_totals_odds()
+            run_totals_predictions()
+        except Exception as e:
+            msg = f"Totals pre-game run failed: {e}"
             log(f"ERROR — {msg}")
             errors.append(msg)
 
@@ -111,11 +121,27 @@ def run(pregame: bool = False):
         log(f"ERROR — {msg}")
         errors.append(msg)
 
-    log("Step 5: Running prediction engine...")
+    log("Step 4b: Fetching totals odds (morning snapshot)...")
+    try:
+        fetch_and_store_totals_odds()
+    except Exception as e:
+        msg = f"Totals odds fetch failed: {e}"
+        log(f"ERROR — {msg}")
+        errors.append(msg)
+
+    log("Step 5: Running moneyline prediction engine...")
     try:
         run_predictions()
     except Exception as e:
         msg = f"Prediction engine failed: {e}"
+        log(f"ERROR — {msg}")
+        errors.append(msg)
+
+    log("Step 6: Running totals EV engine...")
+    try:
+        run_totals_predictions()
+    except Exception as e:
+        msg = f"Totals EV engine failed: {e}"
         log(f"ERROR — {msg}")
         errors.append(msg)
 
