@@ -18,12 +18,7 @@ type UnifiedBet = {
 };
 
 function normalizeMLB(b: MLBEvBet): UnifiedBet {
-  const bookLabel = (b.entry_book || "")
-    .replace("williamhill_us", "Caesars")
-    .replace("draftkings",     "DraftKings")
-    .replace("fanduel",        "FanDuel")
-    .replace("betmgm",         "BetMGM")
-    .replace("pinnacle",       "Pinnacle");
+  const bookLabel = formatBook(b.entry_book || "");
   return {
     team:           b.team,
     matchup:        b.matchup,
@@ -44,7 +39,7 @@ function normalizeNHL(b: NHLEvBet): UnifiedBet {
     team:           b.team,
     matchup:        b.matchup,
     odds:           b.odds,
-    bookLabel:      b.entry_book_label || b.entry_book,
+    bookLabel:      formatBook(b.entry_book_label || b.entry_book),
     model_prob:     b.model_prob,
     pin_prob:       b.pinnacle_prob,
     market_prob:    b.market_prob,
@@ -60,7 +55,7 @@ function normalizeNBA(b: NBAEvBet): UnifiedBet {
     team:           b.team,
     matchup:        b.matchup,
     odds:           b.odds,
-    bookLabel:      b.entry_book_label || b.entry_book,
+    bookLabel:      formatBook(b.entry_book_label || b.entry_book),
     model_prob:     b.model_prob,
     pin_prob:       b.pinnacle_prob,
     market_prob:    b.market_prob,
@@ -69,6 +64,15 @@ function normalizeNBA(b: NBAEvBet): UnifiedBet {
     kelly_pct:      b.kelly_pct,
     lm:             b.line_move_direction ?? 0,
   };
+}
+
+function formatBook(key: string): string {
+  return key
+    .replace("williamhill_us", "Caesars")
+    .replace("draftkings",     "DraftKings")
+    .replace("fanduel",        "FanDuel")
+    .replace("betmgm",         "BetMGM")
+    .replace("pinnacle",       "Pinnacle");
 }
 
 function Signal({ lm }: { lm: number }) {
@@ -138,7 +142,7 @@ function TotalsCard({ b }: { b: MLBTotalsEvBet }) {
           <div className="flex items-baseline gap-1.5">
             <span className="font-mono text-[#cbd5e1] text-sm font-medium">{b.entry_odds.toFixed(3)}</span>
             <span className="text-[#4b5563] text-xs">at</span>
-            <span className="text-[#64748b] text-xs">{b.entry_book}</span>
+            <span className="text-[#64748b] text-xs">{formatBook(b.entry_book)}</span>
           </div>
         </div>
       </div>
