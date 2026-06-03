@@ -127,6 +127,16 @@ def run_totals_predictions():
 
     today = datetime.now().strftime("%Y-%m-%d")
 
+    # Use the earliest upcoming date in the totals odds table (handles UTC crossover)
+    try:
+        target_row = engine.connect().execute(
+            text("SELECT MIN(game_date) FROM historical_totals_odds WHERE game_date >= :today"),
+            {"today": today}
+        ).fetchone()
+        target_date = target_row[0] if target_row and target_row[0] else today
+    except Exception:
+        target_date = today
+
     # Load game data for feature building
     df_games = pd.read_sql(text("""
         SELECT game_pk, game_date, home_team, away_team,
@@ -187,8 +197,8 @@ def run_totals_predictions():
                    best_under_odds, best_under_book,
                    opening_pinnacle_over_odds
             FROM historical_totals_odds
-            WHERE game_date = :today
-        """), engine, params={"today": today})
+            WHERE game_date = :target_date
+        """), engine, params={"target_date": target_date})
     except Exception as e:
         print(f"  No totals odds found ({e}). Run fetch_odds.py first.")
         return []
@@ -201,7 +211,7 @@ def run_totals_predictions():
     for _, r in odds_df.iterrows():
         totals_lookup[(r["home_team"], r["away_team"])] = dict(r)
 
-    probable_starters = _fetch_probable_starters(today)
+    probable_starters = _fetch_probable_starters(target_date)
     if not probable_starters:
         print("  No games found.")
         return []
@@ -342,7 +352,7 @@ def run_totals_predictions():
 
             label = f"Over {line}" if side == "over" else f"Under {line}"
             ev_bets.append({
-                "game_date":          today,
+                "game_date":          target_date,
                 "matchup":            matchup,
                 "side":               side,
                 "label":              label,
