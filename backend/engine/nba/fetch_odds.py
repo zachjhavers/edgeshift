@@ -1,7 +1,7 @@
 """
 Fetch NBA moneyline odds from The Odds API — Pinnacle + 4 US books in one call.
-Pinnacle is stored separately as the market baseline; best US book odds are
-tracked for display (US bettors cannot use Pinnacle).
+Pinnacle is stored as the market baseline; best odds across all books are tracked
+for display (Pinnacle typically wins due to lowest vig).
 """
 
 import os
@@ -95,12 +95,10 @@ def fetch_and_store_odds():
         consensus  = round(sum(vf_probs) / len(vf_probs), 4)
         opening_pp = round(_vig_free_prob(pin_h, pin_a), 4) if pin_h and pin_a else None
 
-        # Best US book (exclude Pinnacle — US bettors can't use it)
-        us_odds = {k: v for k, v in book_odds.items() if k != SHARP_BOOK} or book_odds
-        best_h_odds = max(h for h, _ in us_odds.values())
-        best_h_book = next(k for k, (h, _) in us_odds.items() if h == best_h_odds)
-        best_a_odds = max(a for _, a in us_odds.values())
-        best_a_book = next(k for k, (_, a) in us_odds.items() if a == best_a_odds)
+        best_h_odds = max(h for h, _ in book_odds.values())
+        best_h_book = next(k for k, (h, _) in book_odds.items() if h == best_h_odds)
+        best_a_odds = max(a for _, a in book_odds.values())
+        best_a_book = next(k for k, (_, a) in book_odds.items() if a == best_a_odds)
 
         dk      = book_odds.get("draftkings")
         disp_h  = dk[0] if dk else (pin_h or best_h_odds)

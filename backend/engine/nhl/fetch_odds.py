@@ -166,11 +166,10 @@ def fetch_and_store_odds():
         vf_probs = [_vig_free_prob(h, a) for h, a in book_odds.values()]
         consensus_home_prob = round(sum(vf_probs) / len(vf_probs), 4)
 
-        us_odds = {k: v for k, v in book_odds.items() if k != "pinnacle"} or book_odds
-        best_h_odds = max(h for h, _ in us_odds.values())
-        best_h_book = next(k for k, (h, _) in us_odds.items() if h == best_h_odds)
-        best_a_odds = max(a for _, a in us_odds.values())
-        best_a_book = next(k for k, (_, a) in us_odds.items() if a == best_a_odds)
+        best_h_odds = max(h for h, _ in book_odds.values())
+        best_h_book = next(k for k, (h, _) in book_odds.items() if h == best_h_odds)
+        best_a_odds = max(a for _, a in book_odds.values())
+        best_a_book = next(k for k, (_, a) in book_odds.items() if a == best_a_odds)
 
         # Legacy columns fall back to DraftKings, then first available book
         dk         = book_odds.get("draftkings")
