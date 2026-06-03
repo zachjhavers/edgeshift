@@ -19,6 +19,10 @@ export const api = {
     evBets: (date?: string) =>
       get<NHLEvBetsResponse>(`/api/nhl/ev-bets${date ? `?date=${date}` : ""}`),
   },
+  nba: {
+    evBets: (date?: string) =>
+      get<NBAEvBetsResponse>(`/api/nba/ev-bets${date ? `?date=${date}` : ""}`),
+  },
   health: () => get<{ status: string }>("/api/health"),
 };
 
@@ -77,4 +81,34 @@ export interface NHLEvBetsResponse {
   date:  string | null;
   total: number;
   bets:  NHLEvBet[];
+}
+
+// ── NBA ───────────────────────────────────────────────────────────────────────
+
+export interface NBAEvBet {
+  date:                  string;
+  matchup:               string;
+  side:                  "home" | "away";
+  team:                  string;
+  game_type:             string;
+  model_prob:            number;
+  market_prob:           number;
+  pinnacle_prob:         number | null;
+  edge_vs_market:        number;
+  odds:                  number;
+  entry_book:            string;
+  entry_book_label:      string;
+  ev:                    number;
+  kelly_pct:             number;
+  line_move_direction:   number;
+  line_move_label:       string | null;
+  closing_pinnacle_odds: number | null;
+  clv_pct:               number | null;
+  result:                string;
+}
+
+export interface NBAEvBetsResponse {
+  date:  string | null;
+  total: number;
+  bets:  NBAEvBet[];
 }

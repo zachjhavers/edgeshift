@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { MLBEvBet, NHLEvBet } from "@/lib/api";
+import type { MLBEvBet, NBAEvBet, NHLEvBet } from "@/lib/api";
 
 export const revalidate = 300;
 
@@ -40,6 +40,22 @@ function normalizeMLB(b: MLBEvBet): UnifiedBet {
 }
 
 function normalizeNHL(b: NHLEvBet): UnifiedBet {
+  return {
+    team:           b.team,
+    matchup:        b.matchup,
+    odds:           b.odds,
+    bookLabel:      b.entry_book_label || b.entry_book,
+    model_prob:     b.model_prob,
+    pin_prob:       b.pinnacle_prob,
+    market_prob:    b.market_prob,
+    edge_vs_market: b.edge_vs_market,
+    ev:             b.ev,
+    kelly_pct:      b.kelly_pct,
+    lm:             b.line_move_direction ?? 0,
+  };
+}
+
+function normalizeNBA(b: NBAEvBet): UnifiedBet {
   return {
     team:           b.team,
     matchup:        b.matchup,
@@ -110,9 +126,10 @@ function BetCard({ b }: { b: UnifiedBet }) {
 }
 
 export default async function Home() {
-  const [mlbResult, nhlResult] = await Promise.allSettled([
+  const [mlbResult, nhlResult, nbaResult] = await Promise.allSettled([
     api.mlb.evBets(),
     api.nhl.evBets(),
+    api.nba.evBets(),
   ]);
 
   const mlbBets = mlbResult.status === "fulfilled"
@@ -121,13 +138,17 @@ export default async function Home() {
   const nhlBets = nhlResult.status === "fulfilled"
     ? (nhlResult.value.bets ?? []).map(normalizeNHL)
     : [];
+  const nbaBets = nbaResult.status === "fulfilled"
+    ? (nbaResult.value.bets ?? []).map(normalizeNBA)
+    : [];
 
   const date =
     (mlbResult.status === "fulfilled" && mlbResult.value.date) ||
     (nhlResult.status === "fulfilled" && nhlResult.value.date) ||
+    (nbaResult.status === "fulfilled" && nbaResult.value.date) ||
     new Date().toISOString().slice(0, 10);
 
-  const noPicksToday = mlbBets.length === 0 && nhlBets.length === 0;
+  const noPicksToday = mlbBets.length === 0 && nhlBets.length === 0 && nbaBets.length === 0;
 
   return (
     <div>
@@ -190,6 +211,25 @@ export default async function Home() {
               : (
                 <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-8 text-center text-sm text-[#64748b]">
                   No qualifying NHL bets today.
+                </div>
+              )
+            }
+          </section>
+
+          {/* Basketball */}
+          <section>
+            <div className="flex items-baseline gap-3 mb-4">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-white">Basketball</h2>
+              {nbaBets.length > 0
+                ? <span className="text-sm text-[#64748b]">{nbaBets.length} pick{nbaBets.length !== 1 ? "s" : ""}</span>
+                : <span className="text-sm text-[#64748b]">No picks today</span>
+              }
+            </div>
+            {nbaBets.length > 0
+              ? <div className="space-y-3">{nbaBets.map((b, i) => <BetCard key={i} b={b} />)}</div>
+              : (
+                <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-8 text-center text-sm text-[#64748b]">
+                  No qualifying NBA bets today.
                 </div>
               )
             }

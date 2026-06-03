@@ -14,3 +14,6 @@ requests>=2.31.0
 # MLB engine
 pybaseball>=2.2.7
 sqlalchemy>=2.0.0
+
+# NBA engine
+nba_api>=1.4.1
