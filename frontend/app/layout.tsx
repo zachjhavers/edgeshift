@@ -14,20 +14,11 @@ export const metadata: Metadata = {
     url: "https://edgeshift.vercel.app",
     siteName: "EdgeShift",
     type: "website",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "EdgeShift — Daily EV Picks",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "EdgeShift — Daily EV Picks",
     description: "Mathematical edge-finding for MLB, NHL, and NBA.",
-    images: ["/og-image.png"],
   },
   robots: {
     index: true,
@@ -47,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="shrink-0 border-b border-[#1a3050] bg-[#090d1a]">
           <div className="max-w-5xl mx-auto px-4 md:px-6 py-3 flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" width={28} height={28} alt="EdgeShift" className="rounded-md shrink-0" />
+            <img src="/logo.svg" width={32} height={32} alt="EdgeShift" className="shrink-0" />
             <div className="flex items-baseline gap-2">
               <span className="text-base font-bold text-white">
                 Edge<span className="text-[#06b6d4]">Shift</span>
