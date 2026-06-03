@@ -59,11 +59,17 @@ def _get(path: str, params: dict | None = None, retries: int = 2) -> dict | None
 
 def _parse_stat(stats: dict, key: str) -> int:
     """Parse 'made-attempted' or plain integer stat."""
-    val = stats.get(key, "0")
-    if "-" in str(val):
-        return int(str(val).split("-")[0])
+    val = str(stats.get(key, "0")).strip()
+    if not val or val == "-":
+        return 0
+    if "-" in val:
+        part = val.split("-")[0]
+        try:
+            return int(part) if part else 0
+        except ValueError:
+            return 0
     try:
-        return int(float(str(val)))
+        return int(float(val))
     except (ValueError, TypeError):
         return 0
 
