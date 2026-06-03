@@ -52,6 +52,7 @@ def build_and_train_totals_model():
         HAVING MAX(home_score) IS NOT NULL AND MAX(away_score) IS NOT NULL
         ORDER BY game_date
     """, engine, parse_dates=["game_date"])
+    df_games["home_win"]   = (df_games["final_home_score"] > df_games["final_away_score"]).astype(int)
     df_games["total_runs"] = df_games["final_home_score"] + df_games["final_away_score"]
     df_games = df_games.dropna(subset=["home_xwoba", "away_xwoba"]).reset_index(drop=True)
     print(f"  {len(df_games)} games loaded.")

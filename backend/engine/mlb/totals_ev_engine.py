@@ -144,6 +144,7 @@ def run_totals_predictions():
         HAVING MAX(home_score) IS NOT NULL
         ORDER BY game_date
     """), engine, params={"today": today}, parse_dates=["game_date"])
+    df_games["home_win"] = (df_games["final_home_score"] > df_games["final_away_score"]).astype(int)
 
     pitcher_q = text("""
         SELECT game_pk, game_date, home_team, away_team, pitcher, inning_topbot,
