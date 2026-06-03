@@ -15,5 +15,4 @@ requests>=2.31.0
 pybaseball>=2.2.7
 sqlalchemy>=2.0.0
 
-# NBA engine
-nba_api>=1.4.1
+# NBA engine (uses ESPN unofficial API — no auth required)

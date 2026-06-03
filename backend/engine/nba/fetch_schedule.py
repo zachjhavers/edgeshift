@@ -1,94 +1,78 @@
 """
-Fetch today's NBA schedule via nba_api Scoreboard endpoint.
-Detects game type (regular/playoff) from the NBA game ID format:
-  game_id[2] == '2' → Regular Season
-  game_id[2] == '4' → Playoffs
+Fetch today's NBA schedule from the ESPN unofficial API.
+Returns upcoming AND in-progress games (not just completed).
 """
 
 import time
 from datetime import datetime
 from pathlib import Path
 
+import requests
 
-NBA_HEADERS = {
-    "Host":                  "stats.nba.com",
-    "User-Agent":            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept":                "application/json, text/plain, */*",
-    "Accept-Language":       "en-US,en;q=0.9",
-    "Accept-Encoding":       "gzip, deflate, br",
-    "x-nba-stats-origin":    "stats",
-    "x-nba-stats-token":     "true",
-    "Referer":               "https://www.nba.com/",
-    "Connection":            "keep-alive",
-    "Pragma":                "no-cache",
-    "Cache-Control":         "no-cache",
+ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/basketball/nba"
+
+ESPN_ABBR = {
+    "NY":   "NYK",
+    "GS":   "GSW",
+    "SA":   "SAS",
+    "NO":   "NOP",
+    "WSH":  "WAS",
+    "UTAH": "UTA",
 }
 
 
-def _game_type(game_id: str) -> str:
-    return "playoff" if len(game_id) >= 3 and game_id[2] == "4" else "regular"
+def _norm(abbr: str) -> str:
+    return ESPN_ABBR.get(abbr.upper(), abbr.upper())
 
 
 def get_today_games(date: str | None = None) -> list[dict]:
     """
-    Return today's (or given date's) scheduled NBA games.
-    date: ISO format YYYY-MM-DD, or None for today.
-    Returns list of {game_id, game_date, home_team, away_team, game_type}.
+    Return all NBA games scheduled for a given date (or today).
+    date: ISO YYYY-MM-DD or None for today.
+    Includes scheduled, in-progress, and completed games.
     """
-    from nba_api.stats.endpoints import Scoreboard
-
     if date is None:
-        api_date = datetime.now().strftime("%m/%d/%Y")
-        iso_date = datetime.now().strftime("%Y-%m-%d")
-    else:
-        d        = datetime.strptime(date, "%Y-%m-%d")
-        api_date = d.strftime("%m/%d/%Y")
-        iso_date = date
+        date = datetime.now().strftime("%Y-%m-%d")
+
+    date_espn = date.replace("-", "")
 
     try:
-        sb   = Scoreboard(game_date=api_date, timeout=20, headers=NBA_HEADERS)
-        dfs  = sb.get_data_frames()
-        time.sleep(0.5)
+        r = requests.get(
+            f"{ESPN_BASE}/scoreboard",
+            params={"dates": date_espn},
+            timeout=12,
+        )
+        r.raise_for_status()
+        data = r.json()
+        time.sleep(0.3)
     except Exception as e:
-        print(f"  NBA Scoreboard fetch failed: {e}")
-        return []
-
-    if len(dfs) < 2:
-        return []
-
-    game_header = dfs[0]
-    line_score  = dfs[1]
-
-    if game_header.empty:
+        print(f"  ESPN schedule fetch failed: {e}")
         return []
 
     games = []
-    for _, gh in game_header.iterrows():
-        game_id  = str(gh.get("GAME_ID", ""))
-        home_tid = gh.get("HOME_TEAM_ID")
-        away_tid = gh.get("VISITOR_TEAM_ID")
+    for event in data.get("events", []):
+        comp        = event.get("competitions", [{}])[0]
+        competitors = comp.get("competitors", [])
+        season_type = event.get("season", {}).get("type", 2)
+        game_type   = "playoff" if season_type == 3 else "regular"
 
-        if not game_id:
-            continue
+        home_abbr = away_abbr = None
+        for c in competitors:
+            abbr = _norm(c.get("team", {}).get("abbreviation", ""))
+            if c.get("homeAway") == "home":
+                home_abbr = abbr
+            else:
+                away_abbr = abbr
 
-        home_rows = line_score[
-            (line_score["GAME_ID"] == game_id) &
-            (line_score["TEAM_ID"] == home_tid)
-        ]
-        away_rows = line_score[
-            (line_score["GAME_ID"] == game_id) &
-            (line_score["TEAM_ID"] == away_tid)
-        ]
-
-        if home_rows.empty or away_rows.empty:
+        if not home_abbr or not away_abbr:
             continue
 
         games.append({
-            "game_id":   game_id,
-            "game_date": iso_date,
-            "home_team": str(home_rows.iloc[0]["TEAM_ABBREVIATION"]),
-            "away_team": str(away_rows.iloc[0]["TEAM_ABBREVIATION"]),
-            "game_type": _game_type(game_id),
+            "game_id":   event["id"],
+            "game_date": date,
+            "home_team": home_abbr,
+            "away_team": away_abbr,
+            "game_type": game_type,
         })
 
     return games
