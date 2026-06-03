@@ -13,6 +13,20 @@ from nba_api.stats.endpoints import LeagueGameLog
 
 from db import get_conn, setup_db
 
+NBA_HEADERS = {
+    "Host":                  "stats.nba.com",
+    "User-Agent":            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept":                "application/json, text/plain, */*",
+    "Accept-Language":       "en-US,en;q=0.9",
+    "Accept-Encoding":       "gzip, deflate, br",
+    "x-nba-stats-origin":    "stats",
+    "x-nba-stats-token":     "true",
+    "Referer":               "https://www.nba.com/",
+    "Connection":            "keep-alive",
+    "Pragma":                "no-cache",
+    "Cache-Control":         "no-cache",
+}
+
 FIRST_SEASON = "2015-16"
 
 
@@ -44,15 +58,15 @@ def _fetch_season(season: str, season_type: str) -> pd.DataFrame:
                 direction="ASC",
                 sorter="DATE",
                 timeout=30,
+                headers=NBA_HEADERS,
             )
             df = log.get_data_frames()[0]
             time.sleep(0.8)
             return df
         except Exception as e:
-            wait = 5 if attempt == 0 else 0
-            print(f"    Fetch failed ({e}){f' — retrying in {wait}s' if wait else ''}.")
-            if wait:
-                time.sleep(wait)
+            if attempt == 0:
+                print(f"    Fetch failed ({e}) — retrying in 5s.")
+                time.sleep(5)
     return pd.DataFrame()
 
 

@@ -10,6 +10,21 @@ from datetime import datetime
 from pathlib import Path
 
 
+NBA_HEADERS = {
+    "Host":                  "stats.nba.com",
+    "User-Agent":            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept":                "application/json, text/plain, */*",
+    "Accept-Language":       "en-US,en;q=0.9",
+    "Accept-Encoding":       "gzip, deflate, br",
+    "x-nba-stats-origin":    "stats",
+    "x-nba-stats-token":     "true",
+    "Referer":               "https://www.nba.com/",
+    "Connection":            "keep-alive",
+    "Pragma":                "no-cache",
+    "Cache-Control":         "no-cache",
+}
+
+
 def _game_type(game_id: str) -> str:
     return "playoff" if len(game_id) >= 3 and game_id[2] == "4" else "regular"
 
@@ -31,7 +46,7 @@ def get_today_games(date: str | None = None) -> list[dict]:
         iso_date = date
 
     try:
-        sb   = Scoreboard(game_date=api_date, timeout=20)
+        sb   = Scoreboard(game_date=api_date, timeout=20, headers=NBA_HEADERS)
         dfs  = sb.get_data_frames()
         time.sleep(0.5)
     except Exception as e:
