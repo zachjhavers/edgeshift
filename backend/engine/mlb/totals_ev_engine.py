@@ -132,6 +132,10 @@ def run_totals_predictions():
         SELECT game_pk, game_date, home_team, away_team,
                MAX(home_score) AS final_home_score,
                MAX(away_score) AS final_away_score,
+               AVG(CASE WHEN inning_topbot='Top' THEN release_speed END)                   AS home_pitch_velo,
+               AVG(CASE WHEN inning_topbot='Bot' THEN release_speed END)                   AS away_pitch_velo,
+               AVG(CASE WHEN inning_topbot='Bot' THEN launch_speed END)                    AS home_bat_exit_velo,
+               AVG(CASE WHEN inning_topbot='Top' THEN launch_speed END)                    AS away_bat_exit_velo,
                AVG(CASE WHEN inning_topbot='Bot' THEN estimated_woba_using_speedangle END) AS home_xwoba,
                AVG(CASE WHEN inning_topbot='Top' THEN estimated_woba_using_speedangle END) AS away_xwoba
         FROM statcast_raw
