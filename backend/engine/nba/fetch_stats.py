@@ -134,7 +134,7 @@ def _fetch_box_score(game_id: str) -> dict | None:
     home_stats = away_stats = {}
 
     for team_data in teams:
-        abbr    = _norm(team_data["team"]["abbreviation"])
+        abbr    = _norm(team_data["team"].get("abbreviation", ""))
         ha      = team_data.get("homeAway", "")
         raw     = {s["name"]: s.get("displayValue", "0") for s in team_data.get("statistics", [])}
 
