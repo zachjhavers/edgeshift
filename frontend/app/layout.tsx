@@ -1,9 +1,38 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "EdgeShift — Daily EV Picks",
-  description: "Find sports bets with a mathematical edge. Our models compare win probabilities to market odds and surface positive expected value plays every day.",
+  description: "Find sports bets with a mathematical edge. Our models analyze MLB, NHL, and NBA games daily and surface positive expected value plays — bets where the true win probability is higher than what the sportsbook odds imply.",
+  keywords: ["sports betting", "EV betting", "expected value", "MLB picks", "NHL picks", "NBA picks", "sharp betting", "positive EV"],
+  metadataBase: new URL("https://edgeshift.vercel.app"),
+  authors: [{ name: "EdgeShift" }],
+  openGraph: {
+    title: "EdgeShift — Daily EV Picks",
+    description: "Mathematical edge-finding for MLB, NHL, and NBA. Our models surface +EV bets every morning based on Pinnacle sharp lines.",
+    url: "https://edgeshift.vercel.app",
+    siteName: "EdgeShift",
+    type: "website",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "EdgeShift — Daily EV Picks",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "EdgeShift — Daily EV Picks",
+    description: "Mathematical edge-finding for MLB, NHL, and NBA.",
+    images: ["/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
   icons: {
     icon: "/favicon.ico",
     apple: "/apple-touch-icon.png",
@@ -36,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </div>
         </main>
+        <Analytics />
       </body>
     </html>
   );
