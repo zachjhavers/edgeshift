@@ -369,10 +369,20 @@ def run_totals_predictions():
                 "line_move_direction": lm,
             })
 
-    ev_bets.sort(key=lambda x: x["ev"], reverse=True)
+    # One bet per game — keep the higher-EV side only
+    seen: dict[str, dict] = {}
+    for b in ev_bets:
+        key = b["matchup"]
+        if key not in seen or b["ev"] > seen[key]["ev"]:
+            seen[key] = b
+    ev_bets = sorted(seen.values(), key=lambda x: x["ev"], reverse=True)
 
     if ev_bets:
         with engine.begin() as conn:
+            # Clear today's entries first so stale over/under from prior runs don't linger
+            conn.execute(text(
+                "DELETE FROM mlb_totals_ev_bets WHERE game_date = :d"
+            ), {"d": target_date})
             for b in ev_bets:
                 conn.execute(text("""
                     INSERT INTO mlb_totals_ev_bets

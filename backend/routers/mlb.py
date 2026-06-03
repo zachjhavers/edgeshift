@@ -339,6 +339,9 @@ def get_totals_ev_bets(date: Optional[str] = Query(None)):
     if day.empty:
         return {"date": date, "total": 0, "bets": []}
 
+    # One bet per matchup — keep the highest-EV side
+    day = day.sort_values("ev", ascending=False).drop_duplicates(subset=["matchup"], keep="first")
+
     bets = []
     for _, row in day.iterrows():
         def _f(col, digits=4):
