@@ -204,9 +204,12 @@ def update_results():
             all_resolved.extend(resolved)
         time.sleep(0.2)
 
-    if all_resolved:
-        _resolve_clv(list(set(all_resolved)))
-        print(f"  CLV resolved for {len(set(all_resolved))} date(s).")
+    # Resolve CLV/result for all pending dates (including bets whose game
+    # result was already written in a prior run)
+    all_dates = list(set(all_resolved) | set(pending))
+    if all_dates:
+        _resolve_clv(all_dates)
+        print(f"  CLV resolved for {len(all_dates)} date(s).")
 
     print(f"Done: {total_updated} game result(s) updated.")
 
