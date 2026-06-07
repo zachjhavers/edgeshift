@@ -35,7 +35,7 @@ def daily_update():
     update_results()
 
     print("Step 2: Fetching upcoming schedule...")
-    fetch_and_store_schedule(days_ahead=3)
+    fetch_and_store_schedule(days_ahead=14)
 
     print("Step 3: Fetching odds...")
     fetch_and_store_odds()
