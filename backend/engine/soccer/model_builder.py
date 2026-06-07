@@ -49,41 +49,37 @@ def _poisson_pmf(k: int, lam: float) -> float:
 
 
 def _log_likelihood(params: np.ndarray, teams: list[str],
-                    home: list[str], away: list[str],
-                    hg: list[int], ag: list[int],
-                    weights: list[float],
-                    neutral: list[int]) -> float:
-    n = len(teams)
-    alpha = np.exp(params[:n])      # attack strengths (positive)
-    delta = np.exp(params[n:2*n])   # defense strengths (positive)
-    rho   = params[2*n]             # low-score correction
-    base  = np.exp(params[2*n + 1]) # base scoring rate
+                    h_idx: np.ndarray, a_idx: np.ndarray,
+                    hg: np.ndarray, ag: np.ndarray,
+                    weights: np.ndarray,
+                    ha_mask: np.ndarray) -> float:
+    """Vectorized Dixon-Coles negative log-likelihood."""
+    n     = len(teams)
+    alpha = np.exp(params[:n])
+    delta = np.exp(params[n:2*n])
+    rho   = params[2*n]
+    base  = np.exp(params[2*n + 1])
 
-    team_idx = {t: i for i, t in enumerate(teams)}
+    lam = base * alpha[h_idx] * delta[a_idx] * np.exp(HOST_ADVANTAGE * ha_mask)
+    mu  = base * alpha[a_idx] * delta[h_idx]
 
-    ll = 0.0
-    for i in range(len(home)):
-        h_idx = team_idx.get(home[i])
-        a_idx = team_idx.get(away[i])
-        if h_idx is None or a_idx is None:
-            continue
+    # Poisson log-PMF: k*log(λ) - λ - log(k!)
+    log_p_hg = hg * np.log(lam) - lam - np.array([np.log(float(factorial(k))) for k in hg])
+    log_p_ag = ag * np.log(mu)  - mu  - np.array([np.log(float(factorial(k))) for k in ag])
 
-        # Home advantage only for host nations at WC (all other games neutral)
-        ha = HOST_ADVANTAGE if (neutral[i] == 0 or home[i] in HOST_NATIONS) else 0.0
+    # Dixon-Coles low-score correction (only affects scores 0 or 1)
+    tau = np.ones(len(hg))
+    mask00 = (hg == 0) & (ag == 0); tau[mask00] = 1 - lam[mask00] * mu[mask00] * rho
+    mask10 = (hg == 1) & (ag == 0); tau[mask10] = 1 + mu[mask10] * rho
+    mask01 = (hg == 0) & (ag == 1); tau[mask01] = 1 + lam[mask01] * rho
+    mask11 = (hg == 1) & (ag == 1); tau[mask11] = 1 - rho
 
-        lam = base * alpha[h_idx] * delta[a_idx] * np.exp(ha)
-        mu  = base * alpha[a_idx] * delta[h_idx]
+    tau = np.clip(tau, 1e-10, None)
+    log_lik = weights * (log_p_hg + log_p_ag + np.log(tau))
 
-        t = _tau(hg[i], ag[i], lam, mu, rho)
-        if t <= 0:
-            return np.inf
-
-        p = t * _poisson_pmf(hg[i], lam) * _poisson_pmf(ag[i], mu)
-        if p <= 0:
-            return np.inf
-        ll -= weights[i] * np.log(p)
-
-    return ll
+    if not np.isfinite(log_lik).all():
+        return 1e9
+    return -log_lik.sum()
 
 
 def _time_weight(date_str: str, today: str, half_life_days: float = 730.0) -> float:
@@ -115,7 +111,7 @@ def build_and_train_model(cutoff_date: str | None = None) -> dict:
     if not rows:
         raise ValueError("No match data found. Run fetch_history.py first.")
 
-    home_list, away_list, hg_list, ag_list, w_list, neu_list = [], [], [], [], [], []
+    home_list, away_list, hg_list, ag_list, w_list, ha_list = [], [], [], [], [], []
     for r in rows:
         tw = _time_weight(r["match_date"], today)
         iw = importance_weight(r["tournament"] or "Friendly")
@@ -124,24 +120,46 @@ def build_and_train_model(cutoff_date: str | None = None) -> dict:
         hg_list.append(r["home_score"])
         ag_list.append(r["away_score"])
         w_list.append(tw * iw)
-        neu_list.append(r["neutral"])
+        # Host advantage: non-neutral match OR host nation at WC
+        ha_list.append(1.0 if (not r["neutral"] or r["home_team"] in HOST_NATIONS) else 0.0)
 
-    all_teams = sorted(set(home_list) | set(away_list))
-    n = len(all_teams)
-    print(f"  Fitting Dixon-Coles on {len(rows)} matches, {n} teams...")
+    # Only keep teams that appear in at least 3 matches (prune tiny nations)
+    from collections import Counter
+    counts = Counter(home_list + away_list)
+    valid  = {t for t, c in counts.items() if c >= 3}
+    mask   = [i for i, (h, a) in enumerate(zip(home_list, away_list))
+              if h in valid and a in valid]
+    home_list = [home_list[i] for i in mask]
+    away_list = [away_list[i] for i in mask]
+    hg_list   = [hg_list[i] for i in mask]
+    ag_list   = [ag_list[i] for i in mask]
+    w_list    = [w_list[i] for i in mask]
+    ha_list   = [ha_list[i] for i in mask]
 
-    # Initial params: log(1.0) = 0 for all, rho = -0.1, base = log(DC_BASE_GOALS)
+    all_teams = sorted(valid)
+    n         = len(all_teams)
+    team_idx  = {t: i for i, t in enumerate(all_teams)}
+
+    # Pre-compute numpy arrays for vectorized likelihood
+    h_idx_arr = np.array([team_idx[h] for h in home_list], dtype=np.int32)
+    a_idx_arr = np.array([team_idx[a] for a in away_list], dtype=np.int32)
+    hg_arr    = np.array(hg_list, dtype=np.float64)
+    ag_arr    = np.array(ag_list, dtype=np.float64)
+    w_arr     = np.array(w_list,  dtype=np.float64)
+    ha_arr    = np.array(ha_list, dtype=np.float64)
+
+    print(f"  Fitting Dixon-Coles on {len(mask)} matches, {n} teams...")
+
     x0 = np.zeros(2 * n + 2)
     x0[2*n]     = -0.1
     x0[2*n + 1] = np.log(DC_BASE_GOALS)
 
-    # Constraint: sum of log-attack = 0 (identifiability)
     bounds = [(-3, 3)] * (2 * n) + [(-0.5, 0.0), (-1.0, 1.0)]
 
     result = minimize(
         _log_likelihood,
         x0,
-        args=(all_teams, home_list, away_list, hg_list, ag_list, w_list, neu_list),
+        args=(all_teams, h_idx_arr, a_idx_arr, hg_arr, ag_arr, w_arr, ha_arr),
         method="L-BFGS-B",
         bounds=bounds,
         options={"maxiter": 2000, "ftol": 1e-10},
