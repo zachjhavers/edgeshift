@@ -12,14 +12,12 @@ and Inefficiencies in the Football Betting Market"
 """
 
 import pickle
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 from scipy.optimize import minimize
-from scipy.special import factorial
+from scipy.special import gammaln
 
 from db import get_conn, setup_db
 from utils import DC_BASE_GOALS, HOST_ADVANTAGE, HOST_NATIONS, importance_weight
@@ -27,32 +25,15 @@ from utils import DC_BASE_GOALS, HOST_ADVANTAGE, HOST_NATIONS, importance_weight
 MODEL_PATH = Path(__file__).parent / "models" / "dc_model.pkl"
 
 
-# ── Dixon-Coles helpers ────────────────────────────────────────────────────────
-
-def _tau(x: int, y: int, lam: float, mu: float, rho: float) -> float:
-    """Dixon-Coles low-score correction factor."""
-    if x == 0 and y == 0:
-        return 1 - lam * mu * rho
-    elif x == 1 and y == 0:
-        return 1 + mu * rho
-    elif x == 0 and y == 1:
-        return 1 + lam * rho
-    elif x == 1 and y == 1:
-        return 1 - rho
-    return 1.0
-
-
-def _poisson_pmf(k: int, lam: float) -> float:
-    if lam <= 0:
-        return float(k == 0)
-    return np.exp(-lam) * (lam ** k) / factorial(k)
-
+# ── Dixon-Coles optimizer ──────────────────────────────────────────────────────
 
 def _log_likelihood(params: np.ndarray, teams: list[str],
                     h_idx: np.ndarray, a_idx: np.ndarray,
                     hg: np.ndarray, ag: np.ndarray,
                     weights: np.ndarray,
-                    ha_mask: np.ndarray) -> float:
+                    ha_mask: np.ndarray,
+                    log_fac_hg: np.ndarray,
+                    log_fac_ag: np.ndarray) -> float:
     """Vectorized Dixon-Coles negative log-likelihood."""
     n     = len(teams)
     alpha = np.exp(params[:n])
@@ -63,9 +44,9 @@ def _log_likelihood(params: np.ndarray, teams: list[str],
     lam = base * alpha[h_idx] * delta[a_idx] * np.exp(HOST_ADVANTAGE * ha_mask)
     mu  = base * alpha[a_idx] * delta[h_idx]
 
-    # Poisson log-PMF: k*log(λ) - λ - log(k!)
-    log_p_hg = hg * np.log(lam) - lam - np.array([np.log(float(factorial(k))) for k in hg])
-    log_p_ag = ag * np.log(mu)  - mu  - np.array([np.log(float(factorial(k))) for k in ag])
+    # Poisson log-PMF: k*log(λ) - λ - log(k!)  — gammaln(k+1) = log(k!)
+    log_p_hg = hg * np.log(lam) - lam - log_fac_hg
+    log_p_ag = ag * np.log(mu)  - mu  - log_fac_ag
 
     # Dixon-Coles low-score correction (only affects scores 0 or 1)
     tau = np.ones(len(hg))
@@ -150,6 +131,10 @@ def build_and_train_model(cutoff_date: str | None = None) -> dict:
 
     print(f"  Fitting Dixon-Coles on {len(mask)} matches, {n} teams...")
 
+    # Precompute log(k!) once — reused every likelihood call
+    log_fac_hg = gammaln(hg_arr + 1)
+    log_fac_ag = gammaln(ag_arr + 1)
+
     x0 = np.zeros(2 * n + 2)
     x0[2*n]     = -0.1
     x0[2*n + 1] = np.log(DC_BASE_GOALS)
@@ -159,7 +144,8 @@ def build_and_train_model(cutoff_date: str | None = None) -> dict:
     result = minimize(
         _log_likelihood,
         x0,
-        args=(all_teams, h_idx_arr, a_idx_arr, hg_arr, ag_arr, w_arr, ha_arr),
+        args=(all_teams, h_idx_arr, a_idx_arr, hg_arr, ag_arr, w_arr, ha_arr,
+              log_fac_hg, log_fac_ag),
         method="L-BFGS-B",
         bounds=bounds,
         options={"maxiter": 2000, "ftol": 1e-10},
