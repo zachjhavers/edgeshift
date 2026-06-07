@@ -6,7 +6,7 @@ from pathlib import Path
 
 load_dotenv(Path(__file__).parent / ".env")
 
-from routers import mlb, nhl, nba
+from routers import mlb, nhl, nba, soccer
 
 app = FastAPI(title="EdgeShift API")
 
@@ -26,7 +26,8 @@ app.add_middleware(
 
 app.include_router(mlb.router, prefix="/api/mlb", tags=["mlb"])
 app.include_router(nhl.router, prefix="/api/nhl", tags=["nhl"])
-app.include_router(nba.router, prefix="/api/nba", tags=["nba"])
+app.include_router(nba.router,    prefix="/api/nba",    tags=["nba"])
+app.include_router(soccer.router, prefix="/api/soccer", tags=["soccer"])
 
 
 @app.get("/api/health")

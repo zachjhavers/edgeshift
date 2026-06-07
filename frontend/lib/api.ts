@@ -25,6 +25,10 @@ export const api = {
     evBets: (date?: string) =>
       get<NBAEvBetsResponse>(`/api/nba/ev-bets${date ? `?date=${date}` : ""}`),
   },
+  soccer: {
+    evBets: (date?: string) =>
+      get<SoccerEvBetsResponse>(`/api/soccer/ev-bets${date ? `?date=${date}` : ""}`),
+  },
   health: () => get<{ status: string }>("/api/health"),
 };
 
@@ -138,4 +142,29 @@ export interface NBAEvBetsResponse {
   date:  string | null;
   total: number;
   bets:  NBAEvBet[];
+}
+
+// ── Soccer ────────────────────────────────────────────────────────────────────
+
+export interface SoccerEvBet {
+  date:           string;
+  matchup:        string;
+  market:         "h2h" | "totals";
+  side:           string;
+  label:          string;
+  model_prob:     number;
+  market_prob:    number;
+  pinnacle_prob:  number;
+  edge_vs_market: number;
+  entry_odds:     number;
+  entry_book:     string;
+  ev:             number;
+  kelly_pct:      number;
+  result:         string;
+}
+
+export interface SoccerEvBetsResponse {
+  date:  string | null;
+  total: number;
+  bets:  SoccerEvBet[];
 }

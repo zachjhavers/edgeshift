@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { MLBEvBet, NBAEvBet, NHLEvBet } from "@/lib/api";
+import type { MLBEvBet, NBAEvBet, NHLEvBet, SoccerEvBet } from "@/lib/api";
 import PicksDisplay, { type UnifiedBet } from "@/components/PicksDisplay";
 
 export const revalidate = 300;
@@ -64,11 +64,12 @@ function normalizeNBA(b: NBAEvBet): UnifiedBet {
 export default async function Home() {
   const today = new Date().toISOString().slice(0, 10);
 
-  const [mlbResult, nhlResult, nbaResult, mlbTotalsResult] = await Promise.allSettled([
+  const [mlbResult, nhlResult, nbaResult, mlbTotalsResult, soccerResult] = await Promise.allSettled([
     api.mlb.evBets(today),
     api.nhl.evBets(today),
     api.nba.evBets(today),
     api.mlb.totalsEvBets(today),
+    api.soccer.evBets(today),
   ]);
 
   const mlbBets = mlbResult.status === "fulfilled"
@@ -79,6 +80,8 @@ export default async function Home() {
     ? (nbaResult.value.bets ?? []).map(normalizeNBA) : [];
   const mlbTotalsBets = mlbTotalsResult.status === "fulfilled"
     ? (mlbTotalsResult.value.bets ?? []) : [];
+  const soccerBets = soccerResult.status === "fulfilled"
+    ? (soccerResult.value.bets ?? []) : [];
 
   return (
     <PicksDisplay
@@ -87,6 +90,7 @@ export default async function Home() {
       nhlBets={nhlBets}
       nbaBets={nbaBets}
       mlbTotalsBets={mlbTotalsBets}
+      soccerBets={soccerBets}
     />
   );
 }
