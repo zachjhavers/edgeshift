@@ -40,7 +40,7 @@ def run_ev(target_date: str | None = None) -> list[dict]:
 
     conn = get_conn()
 
-    # Get today's predictions
+    # Get today's predictions — allow ±1 day odds window for UTC vs local date
     preds = conn.execute("""
         SELECT p.home_team, p.away_team,
                p.home_prob, p.draw_prob, p.away_prob,
@@ -49,7 +49,7 @@ def run_ev(target_date: str | None = None) -> list[dict]:
                o.pinnacle_over_odds, o.pinnacle_under_odds, o.total_line
         FROM predictions p
         JOIN historical_odds o
-          ON p.match_date = o.match_date
+          ON ABS(julianday(p.match_date) - julianday(o.match_date)) <= 1
          AND p.home_team  = o.home_team
          AND p.away_team  = o.away_team
         WHERE p.match_date = ?

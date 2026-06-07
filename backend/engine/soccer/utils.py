@@ -89,6 +89,7 @@ ODDS_TO_CANONICAL = {
     "Northern Ireland":       "Northern Ireland",
     "Bosnia and Herzegovina": "Bosnia and Herzegovina",
     "Bosnia-Herzegovina":     "Bosnia and Herzegovina",
+    "Bosnia & Herzegovina":   "Bosnia and Herzegovina",
     "North Macedonia":        "North Macedonia",
     "Kosovo":                 "Kosovo",
     "Norway":                 "Norway",
