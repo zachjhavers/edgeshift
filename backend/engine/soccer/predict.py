@@ -65,10 +65,9 @@ def _probs_from_matrix(mat: np.ndarray) -> dict:
     exp_away = float(np.sum(mat.sum(axis=0) * goals))
 
     # P(over 2.5 goals)
-    p_over_2_5 = float(np.sum(mat[i, j]
-                               for i in range(MAX_GOALS + 1)
-                               for j in range(MAX_GOALS + 1)
-                               if i + j > 2))
+    g = np.arange(MAX_GOALS + 1)
+    goal_totals = g[:, None] + g[None, :]   # (i+j) matrix
+    p_over_2_5 = float(mat[goal_totals > 2].sum())
 
     return {
         "home_prob":    round(home_win, 4),

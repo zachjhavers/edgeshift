@@ -129,12 +129,9 @@ def run_ev(target_date: str | None = None) -> list[dict]:
                 lam *= math.exp(HOST_ADVANTAGE)
             mat = _score_matrix(lam, mu, bundle["rho"])
             import numpy as np
-            p_over = float(sum(
-                mat[i, j]
-                for i in range(mat.shape[0])
-                for j in range(mat.shape[1])
-                if i + j > line
-            ))
+            g = np.arange(mat.shape[0])
+            goal_totals = g[:, None] + g[None, :]
+            p_over  = float(mat[goal_totals > line].sum())
             p_under = 1 - p_over
 
             mkt_over, mkt_under = _remove_vig_3way(
