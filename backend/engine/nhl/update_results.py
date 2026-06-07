@@ -84,8 +84,7 @@ def _update_from_schedule_data(data: dict) -> tuple[int, list[str]]:
 
 def _ensure_ev_cols():
     """Ensure nhl_ev_bets has all columns needed for CLV resolution."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA journal_mode=WAL")
+    conn = get_conn()
     conn.execute("""
         CREATE TABLE IF NOT EXISTS nhl_ev_bets (
             id                     INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -128,9 +127,7 @@ def _ensure_ev_cols():
 def _resolve_clv(resolved_dates: list[str]):
     """Update result + CLV for EV bets whose games just finished."""
     _ensure_ev_cols()
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.row_factory = sqlite3.Row
+    conn = get_conn()
 
     for date in resolved_dates:
         bets = conn.execute("""
