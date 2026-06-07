@@ -7,12 +7,31 @@ import math
 from datetime import datetime
 
 import numpy as np
+from scipy.special import factorial
 
 from db import get_conn
-from model_builder import load_model, _tau, _poisson_pmf
+from model_builder import load_model
 from utils import HOST_ADVANTAGE, HOST_NATIONS, canonical
 
 MAX_GOALS = 10   # truncate Poisson at 10 goals per side
+
+
+def _tau(x: int, y: int, lam: float, mu: float, rho: float) -> float:
+    if x == 0 and y == 0:
+        return 1 - lam * mu * rho
+    elif x == 1 and y == 0:
+        return 1 + mu * rho
+    elif x == 0 and y == 1:
+        return 1 + lam * rho
+    elif x == 1 and y == 1:
+        return 1 - rho
+    return 1.0
+
+
+def _poisson_pmf(k: int, lam: float) -> float:
+    if lam <= 0:
+        return float(k == 0)
+    return float(np.exp(-lam) * (lam ** k) / factorial(k))
 
 
 def _score_matrix(lam: float, mu: float, rho: float) -> np.ndarray:
