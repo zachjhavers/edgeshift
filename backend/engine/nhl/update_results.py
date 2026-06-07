@@ -31,14 +31,20 @@ def _get(url: str) -> dict:
 
 
 def _pending_dates() -> list[str]:
+    """Dates where either a game or an EV bet is still unresolved."""
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     conn = get_conn()
-    rows = conn.execute(
-        "SELECT DISTINCT game_date FROM games WHERE result = 'TBD' AND game_date <= ? ORDER BY game_date",
+    game_dates = {r[0] for r in conn.execute(
+        "SELECT DISTINCT game_date FROM games WHERE result = 'TBD' AND game_date <= ?",
         (yesterday,),
-    ).fetchall()
+    ).fetchall()}
+    # Also include dates where EV bets are TBD but game is already resolved
+    bet_dates = {r[0] for r in conn.execute(
+        "SELECT DISTINCT game_date FROM nhl_ev_bets WHERE result = 'TBD' AND game_date <= ?",
+        (yesterday,),
+    ).fetchall()}
     conn.close()
-    return [r[0] for r in rows]
+    return sorted(game_dates | bet_dates)
 
 
 def _update_from_schedule_data(data: dict) -> tuple[int, list[str]]:

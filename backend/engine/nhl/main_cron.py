@@ -56,8 +56,7 @@ def daily_update():
         build_features()
         preds = generate_predictions()
         if preds is None:
-            print("Predictions failed — model may need training first (run --full).")
-            sys.exit(1)
+            print("No games today — skipping predictions.")
         fetch_and_store_odds()
         run_ev()
     except Exception as e:

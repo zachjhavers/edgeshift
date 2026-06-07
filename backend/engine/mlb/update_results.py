@@ -164,6 +164,76 @@ def _resolve_clv(engine, resolved: dict[tuple, str]) -> None:
         print(f"  Warning: CLV resolution failed — {e}")
 
 
+def update_totals_results(engine) -> None:
+    """Resolve mlb_totals_ev_bets: compare final run total to the bet line."""
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    with engine.connect() as conn:
+        pending = conn.execute(text("""
+            SELECT id, game_date, matchup, side, total_line, entry_odds, entry_book
+            FROM mlb_totals_ev_bets
+            WHERE result = 'TBD' AND game_date < :today
+            ORDER BY game_date
+        """), {"today": today}).fetchall()
+
+    if not pending:
+        return
+
+    by_date: dict[str, list] = {}
+    for row in pending:
+        by_date.setdefault(row.game_date, []).append(row)
+
+    with engine.begin() as conn:
+        for date_str, rows in by_date.items():
+            scores = fetch_final_scores(date_str)
+            if not scores:
+                continue
+
+            for bet in rows:
+                # matchup format: "AWAY @ HOME"
+                parts = bet.matchup.split(" @ ")
+                if len(parts) != 2:
+                    continue
+                away_abbr, home_abbr = parts[0].strip(), parts[1].strip()
+                key = (home_abbr, away_abbr)
+                if key not in scores:
+                    continue
+
+                home_score, away_score = scores[key]
+                actual_total = home_score + away_score
+                line = float(bet.total_line)
+
+                if actual_total > line:
+                    result = "WIN" if bet.side == "over" else "LOSS"
+                elif actual_total < line:
+                    result = "WIN" if bet.side == "under" else "LOSS"
+                else:
+                    result = "PUSH"
+
+                # CLV from closing totals odds
+                clv_pct = None
+                closing_odds = None
+                odds_row = conn.execute(text("""
+                    SELECT pinnacle_over_odds, pinnacle_under_odds
+                    FROM historical_totals_odds
+                    WHERE game_date = :d AND home_team = :h AND away_team = :a
+                """), {"d": date_str, "h": home_abbr, "a": away_abbr}).fetchone()
+                if odds_row and bet.entry_odds:
+                    closing_odds = float(odds_row[0] if bet.side == "over" else odds_row[1])
+                    if closing_odds and closing_odds > 1.0:
+                        clv_pct = round(float(bet.entry_odds) / closing_odds - 1, 4)
+
+                conn.execute(text("""
+                    UPDATE mlb_totals_ev_bets
+                    SET result = :result,
+                        updated_at = datetime('now')
+                    WHERE id = :id
+                """), {"result": result, "id": bet.id})
+
+                print(f"  {date_str} {bet.matchup} {bet.side.upper()} {line}: "
+                      f"{away_score}+{home_score}={actual_total} → {result}")
+
+
 def update_results():
     engine = get_engine()
     _ensure_table(engine)
@@ -219,6 +289,7 @@ def update_results():
     print(f"Results updated: {total_updated} game(s).")
 
     _resolve_clv(engine, resolved)
+    update_totals_results(engine)
     _sync_csv_from_db(engine)
 
 
