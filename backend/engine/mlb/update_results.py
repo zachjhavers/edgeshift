@@ -252,6 +252,7 @@ def update_results():
 
     if not pending:
         print("No pending predictions to update.")
+        update_totals_results(engine)
         _sync_csv_from_db(engine)
         return
 
