@@ -116,11 +116,11 @@ function TotalsCard({ b, bankroll }: { b: MLBTotalsEvBet; bankroll: number | nul
       </div>
       <div className="grid grid-cols-3 sm:grid-cols-5 gap-x-4 gap-y-3 pt-4 border-t border-[#1a3050]">
         <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Our P({b.side})</div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Our Win %</div>
           <div className="text-[#cbd5e1] font-semibold text-sm">{(b.model_prob * 100).toFixed(1)}%</div>
         </div>
         <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Market P</div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Market Win %</div>
           <div className="text-[#94a3b8] text-sm">{(b.market_prob * 100).toFixed(1)}%</div>
         </div>
         <div>
@@ -210,17 +210,17 @@ function SoccerCard({ b, bankroll }: { b: SoccerEvBet; bankroll: number | null }
           <div className="flex items-baseline gap-1.5">
             <span className="font-mono text-[#cbd5e1] text-sm font-medium">{b.entry_odds.toFixed(3)}</span>
             <span className="text-[#4b5563] text-xs">at</span>
-            <span className="text-[#64748b] text-xs">Pinnacle</span>
+            <span className="text-[#64748b] text-xs">{b.entry_book || "Pinnacle"}</span>
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-x-4 gap-y-3 pt-4 border-t border-[#1a3050]">
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-x-4 gap-y-3 pt-4 border-t border-[#1a3050]">
         <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Our Prob</div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Our Win %</div>
           <div className="text-[#cbd5e1] font-semibold text-sm">{(b.model_prob * 100).toFixed(1)}%</div>
         </div>
         <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Market Prob</div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Market Win %</div>
           <div className="text-[#94a3b8] text-sm">{(b.market_prob * 100).toFixed(1)}%</div>
         </div>
         <div>
@@ -230,6 +230,10 @@ function SoccerCard({ b, bankroll }: { b: SoccerEvBet; bankroll: number | null }
         <div>
           <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Profit / $100</div>
           <div className="text-[#06b6d4] font-bold text-base">${b.ev.toFixed(0)}</div>
+        </div>
+        <div>
+          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Bet Size</div>
+          <BetSize kelly_pct={b.kelly_pct} bankroll={bankroll} />
         </div>
       </div>
     </div>
