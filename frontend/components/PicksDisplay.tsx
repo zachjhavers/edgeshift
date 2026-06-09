@@ -193,12 +193,14 @@ function BankrollInput({ bankroll, onChange }: { bankroll: number | null; onChan
 // ── Main component ─────────────────────────────────────────────────────────
 
 function SoccerCard({ b, bankroll }: { b: SoccerEvBet; bankroll: number | null }) {
+  const gameDate = b.date ? new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
   return (
     <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-5">
       <div className="flex items-start justify-between mb-4">
         <div>
           <div className="text-xl font-bold text-white leading-tight">{b.label}</div>
           <div className="text-sm text-[#64748b] mt-1">{b.matchup}</div>
+          {gameDate && <div className="text-xs text-[#4b5563] mt-1">{gameDate}</div>}
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0 ml-4">
           <span className="text-xs font-semibold uppercase tracking-wider text-[#f59e0b]">
@@ -344,6 +346,11 @@ export default function PicksDisplay({ date, mlbBets, nhlBets, nbaBets, mlbTotal
                 <h2 className="text-sm font-bold uppercase tracking-widest text-white">World Cup</h2>
                 <span className="text-xs font-semibold uppercase tracking-widest text-[#f59e0b]">FIFA 2026</span>
                 <span className="text-sm text-[#64748b]">{soccerBets.length} pick{soccerBets.length !== 1 ? "s" : ""}</span>
+                {soccerBets[0]?.date && soccerBets[0].date !== date && (
+                  <span className="text-xs text-[#4b5563]">
+                    {new Date(soccerBets[0].date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
+                  </span>
+                )}
               </div>
               <div className="space-y-3">{soccerBets.map((b, i) => <SoccerCard key={i} b={b} bankroll={bankroll} />)}</div>
             </section>
