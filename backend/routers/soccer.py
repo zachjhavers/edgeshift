@@ -31,8 +31,17 @@ def get_ev_bets(date: Optional[str] = Query(None)):
 
     try:
         if date is None:
-            row  = conn.execute("SELECT MAX(match_date) AS d FROM soccer_ev_bets").fetchone()
-            date = row["d"] if row and row["d"] else None
+            from datetime import date as _date
+            today = _date.today().isoformat()
+            n = conn.execute("SELECT COUNT(*) FROM soccer_ev_bets WHERE match_date = ?", (today,)).fetchone()[0]
+            if n > 0:
+                date = today
+            else:
+                row = conn.execute("SELECT MIN(match_date) FROM soccer_ev_bets WHERE match_date > ?", (today,)).fetchone()
+                date = row[0] if row and row[0] else None
+            if date is None:
+                row = conn.execute("SELECT MAX(match_date) FROM soccer_ev_bets").fetchone()
+                date = row[0] if row and row[0] else None
 
         if date is None:
             conn.close()

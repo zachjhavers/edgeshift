@@ -227,10 +227,17 @@ def get_ev_bets(date: Optional[str] = Query(None)):
 
     try:
         if date is None:
-            row = conn.execute(
-                "SELECT MAX(game_date) AS max_date FROM nhl_ev_bets"
-            ).fetchone()
-            date = row["max_date"] if row and row["max_date"] else None
+            from datetime import date as _date
+            today = _date.today().isoformat()
+            n = conn.execute("SELECT COUNT(*) FROM nhl_ev_bets WHERE game_date = ?", (today,)).fetchone()[0]
+            if n > 0:
+                date = today
+            else:
+                row = conn.execute("SELECT MIN(game_date) FROM nhl_ev_bets WHERE game_date > ?", (today,)).fetchone()
+                date = row[0] if row and row[0] else None
+            if date is None:
+                row = conn.execute("SELECT MAX(game_date) FROM nhl_ev_bets").fetchone()
+                date = row[0] if row and row[0] else None
 
         if date is None:
             conn.close()

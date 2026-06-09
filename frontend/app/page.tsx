@@ -65,11 +65,11 @@ export default async function Home() {
   const today = new Date().toISOString().slice(0, 10);
 
   const [mlbResult, nhlResult, nbaResult, mlbTotalsResult, soccerResult] = await Promise.allSettled([
-    api.mlb.evBets(today),
-    api.nhl.evBets(today),
-    api.nba.evBets(today),
-    api.mlb.totalsEvBets(today),
-    api.soccer.evBets(today),
+    api.mlb.evBets(),
+    api.nhl.evBets(),
+    api.nba.evBets(),
+    api.mlb.totalsEvBets(),
+    api.soccer.evBets(),
   ]);
 
   const mlbBets = mlbResult.status === "fulfilled"
@@ -83,9 +83,22 @@ export default async function Home() {
   const soccerBets = soccerResult.status === "fulfilled"
     ? (soccerResult.value.bets ?? []) : [];
 
+  // Use today, or the earliest upcoming date with picks across all sports
+  const allDates = [
+    mlbResult.status === "fulfilled" ? mlbResult.value.date : null,
+    nhlResult.status === "fulfilled" ? nhlResult.value.date : null,
+    nbaResult.status === "fulfilled" ? nbaResult.value.date : null,
+    soccerResult.status === "fulfilled" ? soccerResult.value.date : null,
+  ].filter((d): d is string => !!d);
+
+  const futureDates = allDates.filter(d => d >= today);
+  const displayDate = futureDates.length > 0
+    ? futureDates.sort()[0]
+    : (allDates.sort().reverse()[0] ?? today);
+
   return (
     <PicksDisplay
-      date={today}
+      date={displayDate}
       mlbBets={mlbBets}
       nhlBets={nhlBets}
       nbaBets={nbaBets}
