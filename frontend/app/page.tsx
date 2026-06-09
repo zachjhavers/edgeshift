@@ -2,7 +2,7 @@ import { api } from "@/lib/api";
 import type { MLBEvBet, NBAEvBet, NHLEvBet, SoccerEvBet } from "@/lib/api";
 import PicksDisplay, { type UnifiedBet } from "@/components/PicksDisplay";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 function formatBook(key: string): string {
   return key

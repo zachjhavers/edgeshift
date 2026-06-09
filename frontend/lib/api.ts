@@ -2,10 +2,7 @@
 const BASE = process.env.API_URL ?? "http://localhost:8000";
 
 async function get<T>(path: string): Promise<T> {
-  const opts = process.env.NODE_ENV === "development"
-    ? { cache: "no-store" as const }
-    : { next: { revalidate: 300 } };
-  const res = await fetch(`${BASE}${path}`, opts);
+  const res = await fetch(`${BASE}${path}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`API error ${res.status}: ${path}`);
   return res.json();
 }

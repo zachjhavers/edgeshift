@@ -41,7 +41,7 @@ function BetSize({ kelly_pct, bankroll }: { kelly_pct: number; bankroll: number 
     const amount = (kelly_pct / 100) * bankroll;
     return (
       <div>
-        <div className="text-white font-bold text-base">${amount.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div>
+        <div className="text-white font-bold text-base">${amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
         <div className="text-[#4b5563] text-xs mt-0.5">{kelly_pct.toFixed(2)}% of bankroll</div>
       </div>
     );
@@ -146,9 +146,10 @@ function BankrollInput({ bankroll, onChange }: { bankroll: number | null; onChan
   const [raw, setRaw] = useState(bankroll ? String(bankroll) : "");
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const val = e.target.value.replace(/[^0-9]/g, "");
+    const val = e.target.value.replace(/[^0-9.]/g, "").replace(/(\..*)\./g, "$1");
     setRaw(val);
-    onChange(val ? Number(val) : null);
+    const parsed = parseFloat(val);
+    onChange(!isNaN(parsed) && parsed > 0 ? parsed : null);
   }
 
   function handleClear() {
