@@ -268,8 +268,11 @@ def get_ev_bets(date: Optional[str] = Query(None)):
         if today in df["date"].values:
             date = today
         else:
-            future = df[df["date"] > today]
-            date = future["date"].min() if not future.empty else df["date"].max()
+            future = df[df["date"] >= today]
+            date = future["date"].min() if not future.empty else None
+
+    if date is None:
+        return {"date": None, "total": 0, "bets": []}
 
     day = df[df["date"] == date]
     if day.empty:
@@ -344,8 +347,11 @@ def get_totals_ev_bets(date: Optional[str] = Query(None)):
         if today in df["date"].values:
             date = today
         else:
-            future = df[df["date"] > today]
-            date = future["date"].min() if not future.empty else df["date"].max()
+            future = df[df["date"] >= today]
+            date = future["date"].min() if not future.empty else None
+
+    if date is None:
+        return {"date": None, "total": 0, "bets": []}
 
     day = df[df["date"] == date]
     if day.empty:

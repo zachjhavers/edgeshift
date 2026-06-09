@@ -37,10 +37,7 @@ def get_ev_bets(date: Optional[str] = Query(None)):
             if n > 0:
                 date = today
             else:
-                row = conn.execute("SELECT MIN(match_date) FROM soccer_ev_bets WHERE match_date > ?", (today,)).fetchone()
-                date = row[0] if row and row[0] else None
-            if date is None:
-                row = conn.execute("SELECT MAX(match_date) FROM soccer_ev_bets").fetchone()
+                row = conn.execute("SELECT MIN(match_date) FROM soccer_ev_bets WHERE match_date >= ?", (today,)).fetchone()
                 date = row[0] if row and row[0] else None
 
         if date is None:

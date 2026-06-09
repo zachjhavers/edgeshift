@@ -233,10 +233,7 @@ def get_ev_bets(date: Optional[str] = Query(None)):
             if n > 0:
                 date = today
             else:
-                row = conn.execute("SELECT MIN(game_date) FROM nhl_ev_bets WHERE game_date > ?", (today,)).fetchone()
-                date = row[0] if row and row[0] else None
-            if date is None:
-                row = conn.execute("SELECT MAX(game_date) FROM nhl_ev_bets").fetchone()
+                row = conn.execute("SELECT MIN(game_date) FROM nhl_ev_bets WHERE game_date >= ?", (today,)).fetchone()
                 date = row[0] if row and row[0] else None
 
         if date is None:
