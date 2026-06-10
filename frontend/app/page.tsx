@@ -1,5 +1,5 @@
 import { api } from "@/lib/api";
-import type { MLBEvBet, NBAEvBet, NHLEvBet, SoccerEvBet } from "@/lib/api";
+import type { MLBEvBet, MLBTotalsEvBet, NBAEvBet, NHLEvBet, SoccerEvBet } from "@/lib/api";
 import PicksDisplay, { type UnifiedBet } from "@/components/PicksDisplay";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +15,8 @@ function formatBook(key: string): string {
 
 function normalizeMLB(b: MLBEvBet): UnifiedBet {
   return {
+    date:           b.date,
+    betType:        "Moneyline",
     team:           b.team,
     matchup:        b.matchup,
     odds:           b.entry_odds,
@@ -29,8 +31,29 @@ function normalizeMLB(b: MLBEvBet): UnifiedBet {
   };
 }
 
+function normalizeTotals(b: MLBTotalsEvBet): UnifiedBet {
+  const side = b.side === "over" ? "Over" : "Under";
+  return {
+    date:           b.date,
+    betType:        `${side} ${b.total_line}`,
+    team:           b.label,
+    matchup:        b.matchup,
+    odds:           b.entry_odds,
+    bookLabel:      formatBook(b.entry_book || ""),
+    model_prob:     b.model_prob,
+    pin_prob:       b.pinnacle_prob ?? null,
+    market_prob:    b.market_prob,
+    edge_vs_market: b.edge_vs_market,
+    ev:             b.ev,
+    kelly_pct:      b.kelly_pct,
+    lm:             b.line_move_direction ?? 0,
+  };
+}
+
 function normalizeNHL(b: NHLEvBet): UnifiedBet {
   return {
+    date:           b.date,
+    betType:        "Moneyline",
     team:           b.team,
     matchup:        b.matchup,
     odds:           b.odds,
@@ -47,6 +70,8 @@ function normalizeNHL(b: NHLEvBet): UnifiedBet {
 
 function normalizeNBA(b: NBAEvBet): UnifiedBet {
   return {
+    date:           b.date,
+    betType:        "Moneyline",
     team:           b.team,
     matchup:        b.matchup,
     odds:           b.odds,
@@ -58,6 +83,24 @@ function normalizeNBA(b: NBAEvBet): UnifiedBet {
     ev:             b.ev,
     kelly_pct:      b.kelly_pct,
     lm:             b.line_move_direction ?? 0,
+  };
+}
+
+function normalizeSoccer(b: SoccerEvBet): UnifiedBet {
+  return {
+    date:           b.date,
+    betType:        b.market === "h2h" ? "Match Result" : "Goals",
+    team:           b.label,
+    matchup:        b.matchup,
+    odds:           b.entry_odds,
+    bookLabel:      b.entry_book || "Pinnacle",
+    model_prob:     b.model_prob,
+    pin_prob:       b.pinnacle_prob ?? null,
+    market_prob:    b.market_prob,
+    edge_vs_market: b.edge_vs_market,
+    ev:             b.ev,
+    kelly_pct:      b.kelly_pct,
+    lm:             0,
   };
 }
 
@@ -79,11 +122,10 @@ export default async function Home() {
   const nbaBets = nbaResult.status === "fulfilled"
     ? (nbaResult.value.bets ?? []).map(normalizeNBA) : [];
   const mlbTotalsBets = mlbTotalsResult.status === "fulfilled"
-    ? (mlbTotalsResult.value.bets ?? []) : [];
+    ? (mlbTotalsResult.value.bets ?? []).map(normalizeTotals) : [];
   const soccerBets = soccerResult.status === "fulfilled"
-    ? (soccerResult.value.bets ?? []) : [];
+    ? (soccerResult.value.bets ?? []).map(normalizeSoccer) : [];
 
-  // Use today, or the earliest upcoming date with picks across all sports
   const allDates = [
     mlbResult.status === "fulfilled" ? mlbResult.value.date : null,
     nhlResult.status === "fulfilled" ? nhlResult.value.date : null,

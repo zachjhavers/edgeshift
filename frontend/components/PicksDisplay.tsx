@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { MLBTotalsEvBet, SoccerEvBet } from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type UnifiedBet = {
+  date:           string;
+  betType:        string;
   team:           string;
   matchup:        string;
   odds:           number;
@@ -20,12 +21,12 @@ export type UnifiedBet = {
 };
 
 type Props = {
-  date:           string;
-  mlbBets:        UnifiedBet[];
-  nhlBets:        UnifiedBet[];
-  nbaBets:        UnifiedBet[];
-  mlbTotalsBets:  MLBTotalsEvBet[];
-  soccerBets:     SoccerEvBet[];
+  date:          string;
+  mlbBets:       UnifiedBet[];
+  nhlBets:       UnifiedBet[];
+  nbaBets:       UnifiedBet[];
+  mlbTotalsBets: UnifiedBet[];
+  soccerBets:    UnifiedBet[];
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -50,14 +51,20 @@ function BetSize({ kelly_pct, bankroll }: { kelly_pct: number; bankroll: number 
 }
 
 function BetCard({ b, bankroll }: { b: UnifiedBet; bankroll: number | null }) {
+  const gameDate = b.date
+    ? new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : null;
+
   return (
     <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-5">
       <div className="flex items-start justify-between mb-4">
         <div>
           <div className="text-xl font-bold text-white leading-tight">{b.team}</div>
           <div className="text-sm text-[#64748b] mt-1">{b.matchup}</div>
+          {gameDate && <div className="text-xs text-[#4b5563] mt-1">{gameDate}</div>}
         </div>
         <div className="flex flex-col items-end gap-1.5 shrink-0 ml-4">
+          <span className="text-xs font-semibold uppercase tracking-wider text-[#f59e0b]">{b.betType}</span>
           <Signal lm={b.lm} />
           <div className="flex items-baseline gap-1.5">
             <span className="font-mono text-[#cbd5e1] text-sm font-medium">{b.odds.toFixed(3)}</span>
@@ -79,49 +86,6 @@ function BetCard({ b, bankroll }: { b: UnifiedBet; bankroll: number | null }) {
               ? `${(b.pin_prob * 100).toFixed(1)}%`
               : `${(b.market_prob * 100).toFixed(1)}%`}
           </div>
-        </div>
-        <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Edge</div>
-          <div className="text-[#22d3ee] font-semibold text-sm">+{(b.edge_vs_market * 100).toFixed(1)}pp</div>
-        </div>
-        <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Profit / $100</div>
-          <div className="text-[#06b6d4] font-bold text-base">${b.ev.toFixed(0)}</div>
-        </div>
-        <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Bet Size</div>
-          <BetSize kelly_pct={b.kelly_pct} bankroll={bankroll} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TotalsCard({ b, bankroll }: { b: MLBTotalsEvBet; bankroll: number | null }) {
-  return (
-    <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-5">
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <div className="text-xl font-bold text-white leading-tight">{b.label}</div>
-          <div className="text-sm text-[#64748b] mt-1">{b.matchup}</div>
-        </div>
-        <div className="flex flex-col items-end gap-1.5 shrink-0 ml-4">
-          <Signal lm={b.line_move_direction} />
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-mono text-[#cbd5e1] text-sm font-medium">{b.entry_odds.toFixed(3)}</span>
-            <span className="text-[#4b5563] text-xs">at</span>
-            <span className="text-[#64748b] text-xs">{b.entry_book}</span>
-          </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-x-4 gap-y-3 pt-4 border-t border-[#1a3050]">
-        <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Our Win %</div>
-          <div className="text-[#cbd5e1] font-semibold text-sm">{(b.model_prob * 100).toFixed(1)}%</div>
-        </div>
-        <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Market Win %</div>
-          <div className="text-[#94a3b8] text-sm">{(b.market_prob * 100).toFixed(1)}%</div>
         </div>
         <div>
           <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Edge</div>
@@ -166,7 +130,7 @@ function BankrollInput({ bankroll, onChange }: { bankroll: number | null; onChan
         <span className="absolute left-3 text-[#64748b] text-sm pointer-events-none">$</span>
         <input
           type="text"
-          inputMode="numeric"
+          inputMode="decimal"
           value={raw}
           onChange={handleChange}
           placeholder="0"
@@ -193,57 +157,9 @@ function BankrollInput({ bankroll, onChange }: { bankroll: number | null; onChan
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-function SoccerCard({ b, bankroll }: { b: SoccerEvBet; bankroll: number | null }) {
-  const gameDate = b.date ? new Date(b.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
-  return (
-    <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-5">
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <div className="text-xl font-bold text-white leading-tight">{b.label}</div>
-          <div className="text-sm text-[#64748b] mt-1">{b.matchup}</div>
-          {gameDate && <div className="text-xs text-[#4b5563] mt-1">{gameDate}</div>}
-        </div>
-        <div className="flex flex-col items-end gap-1.5 shrink-0 ml-4">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[#f59e0b]">
-            {b.market === "h2h" ? "Match Result" : "Goals"}
-          </span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-mono text-[#cbd5e1] text-sm font-medium">{b.entry_odds.toFixed(3)}</span>
-            <span className="text-[#4b5563] text-xs">at</span>
-            <span className="text-[#64748b] text-xs">{b.entry_book || "Pinnacle"}</span>
-          </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 sm:grid-cols-5 gap-x-4 gap-y-3 pt-4 border-t border-[#1a3050]">
-        <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Our Win %</div>
-          <div className="text-[#cbd5e1] font-semibold text-sm">{(b.model_prob * 100).toFixed(1)}%</div>
-        </div>
-        <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Market Win %</div>
-          <div className="text-[#94a3b8] text-sm">{(b.market_prob * 100).toFixed(1)}%</div>
-        </div>
-        <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Edge</div>
-          <div className="text-[#22d3ee] font-semibold text-sm">+{(b.edge_vs_market * 100).toFixed(1)}pp</div>
-        </div>
-        <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Profit / $100</div>
-          <div className="text-[#06b6d4] font-bold text-base">${b.ev.toFixed(0)}</div>
-        </div>
-        <div>
-          <div className="text-[#4b5563] text-xs uppercase tracking-wider mb-1">Bet Size</div>
-          <BetSize kelly_pct={b.kelly_pct} bankroll={bankroll} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function PicksDisplay({ date, mlbBets, nhlBets, nbaBets, mlbTotalsBets, soccerBets }: Props) {
   const [bankroll, setBankroll] = useState<number | null>(null);
 
-  // Persist bankroll to localStorage
   useEffect(() => {
     const stored = localStorage.getItem("edgeshift_bankroll");
     if (stored) setBankroll(Number(stored));
@@ -258,7 +174,12 @@ export default function PicksDisplay({ date, mlbBets, nhlBets, nbaBets, mlbTotal
     }
   }
 
-  const noPicksToday = mlbBets.length === 0 && nhlBets.length === 0 && nbaBets.length === 0 && mlbTotalsBets.length === 0 && soccerBets.length === 0;
+  const baseballBets = [...mlbBets, ...mlbTotalsBets];
+  const noPicksToday =
+    baseballBets.length === 0 &&
+    nhlBets.length === 0 &&
+    nbaBets.length === 0 &&
+    soccerBets.length === 0;
 
   return (
     <div>
@@ -290,28 +211,15 @@ export default function PicksDisplay({ date, mlbBets, nhlBets, nbaBets, mlbTotal
           <section>
             <div className="flex items-baseline gap-3 mb-4">
               <h2 className="text-sm font-bold uppercase tracking-widest text-white">Baseball</h2>
-              {(mlbBets.length + mlbTotalsBets.length) > 0
-                ? <span className="text-sm text-[#64748b]">{mlbBets.length + mlbTotalsBets.length} pick{(mlbBets.length + mlbTotalsBets.length) !== 1 ? "s" : ""}</span>
+              {baseballBets.length > 0
+                ? <span className="text-sm text-[#64748b]">{baseballBets.length} pick{baseballBets.length !== 1 ? "s" : ""}</span>
                 : <span className="text-sm text-[#64748b]">No picks today</span>
               }
             </div>
-            {mlbBets.length > 0 && (
-              <div className="mb-3">
-                <p className="text-xs font-semibold uppercase tracking-widest text-[#4b5563] mb-2">Moneyline</p>
-                <div className="space-y-3">{mlbBets.map((b, i) => <BetCard key={i} b={b} bankroll={bankroll} />)}</div>
-              </div>
-            )}
-            {mlbTotalsBets.length > 0 && (
-              <div className="mb-3">
-                <p className="text-xs font-semibold uppercase tracking-widest text-[#4b5563] mb-2">Totals</p>
-                <div className="space-y-3">{mlbTotalsBets.map((b, i) => <TotalsCard key={i} b={b} bankroll={bankroll} />)}</div>
-              </div>
-            )}
-            {mlbBets.length === 0 && mlbTotalsBets.length === 0 && (
-              <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-8 text-center text-sm text-[#64748b]">
-                No qualifying MLB bets today.
-              </div>
-            )}
+            {baseballBets.length > 0
+              ? <div className="space-y-3">{baseballBets.map((b, i) => <BetCard key={i} b={b} bankroll={bankroll} />)}</div>
+              : <div className="rounded-xl border border-[#1a3050] bg-[#0a0f1e] p-8 text-center text-sm text-[#64748b]">No qualifying MLB bets today.</div>
+            }
           </section>
 
           {/* Hockey */}
@@ -351,13 +259,8 @@ export default function PicksDisplay({ date, mlbBets, nhlBets, nbaBets, mlbTotal
                 <h2 className="text-sm font-bold uppercase tracking-widest text-white">World Cup</h2>
                 <span className="text-xs font-semibold uppercase tracking-widest text-[#f59e0b]">FIFA 2026</span>
                 <span className="text-sm text-[#64748b]">{soccerBets.length} pick{soccerBets.length !== 1 ? "s" : ""}</span>
-                {soccerBets[0]?.date && soccerBets[0].date !== date && (
-                  <span className="text-xs text-[#4b5563]">
-                    {new Date(soccerBets[0].date + "T12:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
-                  </span>
-                )}
               </div>
-              <div className="space-y-3">{soccerBets.map((b, i) => <SoccerCard key={i} b={b} bankroll={bankroll} />)}</div>
+              <div className="space-y-3">{soccerBets.map((b, i) => <BetCard key={i} b={b} bankroll={bankroll} />)}</div>
             </section>
           )}
 
