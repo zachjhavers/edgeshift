@@ -25,6 +25,10 @@ export const metadata: Metadata = {
     follow: true,
   },
   icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/logo.png",    sizes: "512x512", type: "image/png" },
+    ],
     apple: "/apple-touch-icon.png",
   },
 };
@@ -37,7 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <header className="shrink-0 border-b border-[#1a3050] bg-[#090d1a]">
           <div className="max-w-5xl mx-auto px-4 md:px-6 py-3 flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.svg" width={32} height={32} alt="EdgeShift" className="shrink-0" />
+            <img src="/logo.png" width={32} height={32} alt="EdgeShift" className="shrink-0 rounded-md" />
             <div className="flex items-baseline gap-2">
               <span className="text-base font-bold text-white">
                 Edge<span className="text-[#06b6d4]">Shift</span>
